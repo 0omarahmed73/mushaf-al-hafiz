@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch screen before Android 12 (feature 009): the night colour with the icon in the middle, in the day and the night
+     set alike, so no light frame flashes. 140 dp makes the art as large as the splash tile's art (research D7). Android 12 and
+     later draw their own splash, styled in values-v31/styles.xml. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:gravity="center"
+        android:width="140dp"
+        android:height="140dp" />
+</layer-list>

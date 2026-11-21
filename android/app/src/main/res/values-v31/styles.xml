@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 and later (feature 009): the system draws the launch splash itself from these attributes, in the day and the
+         night set alike (this file and values-night-v31/styles.xml are identical). The icon is the adaptive foreground: the
+         system shows it inside a circle two thirds of its size, the same ratio as the 66 dp safe zone, so nothing is cut. The icon
+         is static: an animated vector is out of scope (research D10). -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenAnimationDuration">500</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+</resources>

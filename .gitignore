@@ -1,0 +1,32 @@
+# Quran data: no published licence for QCF V2 / QUL assets; regenerate with tool/build_quran_assets.py
+data-raw/
+assets/mushaf/
+assets/ayah/
+assets/fonts/qpc-v2/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+# Release signing: never commit a key or its passwords (docs/release/SIGNING.md)
+android/key.properties
+key.properties
+*.jks
+*.keystore

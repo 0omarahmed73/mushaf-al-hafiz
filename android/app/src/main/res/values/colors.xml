@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The night colour of the launch screen (feature 009): the flat colour the phone shows before the app draws its first frame.
+         It is also the outer colour of the in-app splash (lib/splash/splash_palette.dart), so the hand-over is seamless. -->
+    <color name="splash_background">#0D1014</color>
+</resources>
