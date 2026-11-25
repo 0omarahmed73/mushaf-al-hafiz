@@ -25,6 +25,7 @@ class PageLook {
     this.numberColor,
     this.highlight = const Color(0x55FFC107),
     this.endMarker,
+    this.bookmarkTint = const Color(0x290F766E),
   });
 
   /// The colour behind the card in a picture or a PDF page: the app's green.
@@ -58,6 +59,10 @@ class PageLook {
   /// The colour of the ayah-end markers, or null to draw them in the [ink].
   final Color? endMarker;
 
+  /// The light, permanent wash behind the words of an ayah that has a bookmark (feature 013, research D6): another hue
+  /// than [highlight] and a weaker wash, so the two are told apart; the highlight replaces it while it lasts.
+  final Color bookmarkTint;
+
   static const PageLook screen = PageLook(
     ring: AppColors.ring,
     paper: AppColors.paper,
@@ -87,5 +92,6 @@ class PageLook {
     numberColor: Color(0xFF85909B),
     highlight: Color(0x4D6CC4B5),
     endMarker: Color(0xFF6CC4B5),
+    bookmarkTint: Color(0x24E4C877),
   );
 }

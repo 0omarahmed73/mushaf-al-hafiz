@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../ayah/ayah_ref.dart';
+import '../wirds/ayah_bookmark_change.dart';
 import '../wirds/wird_repository.dart';
+import 'models.dart';
 
 /// Holds what the reader shows and applies the position rules (spec FR-015..FR-020):
 /// swiping inside the active wird moves it, a jump enters browse mode and moves nothing, and
@@ -14,6 +17,10 @@ class ReaderController extends ChangeNotifier {
   StreamSubscription<List<Wird>>? _subscription;
   List<Bookmark> _bookmarks = const [];
   final ValueNotifier<bool> _pageBookmarked = ValueNotifier<bool>(false);
+  final ValueNotifier<Set<AyahRef>> _ayahMarks = ValueNotifier<Set<AyahRef>>(
+    const {},
+  );
+  MushafMeta? _meta;
   bool _toggleBusy = false;
   Wird? _wird;
   int _page = 1;
@@ -33,6 +40,15 @@ class ReaderController extends ChangeNotifier {
   /// general ones when browsing or with no wird (feature 006, data-model.md «Scope»). Changing it does not notify
   /// this controller's listeners, so only the icon that listens to it rebuilds, never the Mushaf page.
   ValueListenable<bool> get pageBookmarked => _pageBookmarked;
+
+  /// The ayat that have an ayah bookmark of the current scope (feature 013, data-model.md Controller state): what the Mushaf
+  /// pages tint. Empty until the first read answers; replaced only when the set really changes, and changing it does not
+  /// notify this controller's listeners, so only the pages whose words it changes rebuild.
+  ValueListenable<Set<AyahRef>> get ayahMarks => _ayahMarks;
+
+  /// The fixed edition's data, for the page where an ayah begins (`pageOfAyah`); the reader hands it over at start so the
+  /// controller itself loads no asset.
+  void attachMeta(MushafMeta meta) => _meta = meta;
 
   /// The wird whose bookmarks a tap on the icon reads and writes; null means the general ones.
   int? get _scopeWirdId {
@@ -146,6 +162,68 @@ class ReaderController extends ChangeNotifier {
     await refreshBookmarks();
   }
 
+  /// Whether [ref] has an ayah bookmark of the current scope and its note (the first one that has a note), answered from
+  /// the rows already in memory so the ayah sheet is right in its first frame (research D5, D8).
+  ({bool bookmarked, String? note}) ayahState(AyahRef ref) {
+    final scope = _scopeWirdId;
+    final rows = [
+      for (final b in _bookmarks)
+        if (b.surah == ref.surah && b.ayah == ref.ayah && b.wirdId == scope) b,
+    ];
+    return (
+      bookmarked: rows.isNotEmpty,
+      note: rows.map((b) => b.note).nonNulls.firstOrNull,
+    );
+  }
+
+  int _pageOfAyah(AyahRef ref) {
+    final meta = _meta;
+    if (meta == null) throw StateError('attachMeta was not called');
+    return meta.pageOfAyah(ref.surah, ref.ayah);
+  }
+
+  /// Runs [write] unless another bookmark write is in progress (then null and nothing is written), and reads the
+  /// bookmarks again after it.
+  Future<T?> _guarded<T>(Future<T> Function() write) async {
+    if (_toggleBusy) return null;
+    _toggleBusy = true;
+    try {
+      final result = await write();
+      await refreshBookmarks();
+      return result;
+    } finally {
+      _toggleBusy = false;
+    }
+  }
+
+  /// One tap on the ayah sheet's bookmark row (feature 013): adds a bookmark on [ref] with no note when the scope has none,
+  /// otherwise removes the scope's. The page stored is where the ayah begins. Null while another write is in progress.
+  Future<AyahBookmarkChange?> toggleAyahBookmark(AyahRef ref) => _guarded(
+    () => _repo.toggleAyahBookmark(
+      ref,
+      page: _pageOfAyah(ref),
+      wirdId: _scopeWirdId,
+    ),
+  );
+
+  /// One save of «ملاحظة للآية» (spec FR-021). Null while another write is in progress, and for an empty note on an ayah
+  /// with no bookmark (nothing is written).
+  Future<AyahBookmarkChange?> saveAyahNote(AyahRef ref, String? note) =>
+      _guarded<AyahBookmarkChange?>(
+        () => _repo.saveAyahNote(
+          ref,
+          page: _pageOfAyah(ref),
+          wirdId: _scopeWirdId,
+          note: note,
+        ),
+      );
+
+  /// «تراجع» after a tap of the bookmark row or a save of the note.
+  Future<void> undoAyahBookmarkChange(AyahBookmarkChange change) async {
+    await _repo.undoAyahBookmarkChange(change);
+    await refreshBookmarks();
+  }
+
   /// Reads the bookmarks again and recomputes [pageBookmarked]. Called after every change the controller makes, after
   /// the «علامات» sheet closes (its swipe-to-delete writes straight to the repository) and when the active wird is
   /// replaced. It is a one-shot read on purpose: the controller holds no bookmark stream, so a bookmark written by
@@ -161,8 +239,10 @@ class ReaderController extends ChangeNotifier {
     if (_disposed) return;
     final scope = _scopeWirdId;
     _pageBookmarked.value = _bookmarks.any(
-      (b) => b.page == _page && b.wirdId == scope,
+      (b) => b.page == _page && b.wirdId == scope && b.surah == null,
     );
+    final marks = _repo.ayahMarksOf(_bookmarks, scope);
+    if (!setEquals(marks, _ayahMarks.value)) _ayahMarks.value = marks;
   }
 
   /// Opens what a tapped notification points at (contracts/notifications.md): `wird:<id>` shows that
@@ -222,6 +302,7 @@ class ReaderController extends ChangeNotifier {
     _disposed = true;
     _subscription?.cancel();
     _pageBookmarked.dispose();
+    _ayahMarks.dispose();
     super.dispose();
   }
 }

@@ -15,6 +15,7 @@ class MushafPageCard extends StatelessWidget {
     required String this.fontFamily,
     this.look = PageLook.screen,
     this.highlightedWordIds = const {},
+    this.tintedWordIds = const {},
     this.onWordLongPress,
     this.onPageNumberTap,
   }) : page = null;
@@ -29,6 +30,7 @@ class MushafPageCard extends StatelessWidget {
        meta = null,
        fontFamily = null,
        highlightedWordIds = const {},
+       tintedWordIds = const {},
        onWordLongPress = null,
        onPageNumberTap = null;
 
@@ -38,6 +40,9 @@ class MushafPageCard extends StatelessWidget {
   final int? page;
   final PageLook look;
   final Set<int> highlightedWordIds;
+
+  /// The words of the bookmarked ayat, drawn on [PageLook.bookmarkTint] (feature 013); empty in pictures and PDFs.
+  final Set<int> tintedWordIds;
   final void Function(MushafWord word)? onWordLongPress;
   final VoidCallback? onPageNumberTap;
 
@@ -61,6 +66,8 @@ class MushafPageCard extends StatelessWidget {
             endMarkerColor: look.endMarker,
             highlightColor: look.highlight,
             highlightedWordIds: highlightedWordIds,
+            tintedWordIds: tintedWordIds,
+            tintColor: look.bookmarkTint,
             onWordLongPress: onWordLongPress,
             onPageNumberTap: onPageNumberTap,
           );

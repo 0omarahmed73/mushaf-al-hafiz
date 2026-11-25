@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../backup/backup.dart';
 import '../backup/backup_service.dart';
 import '../look/look_settings.dart';
+import '../mushaf/ayah_bookmark_strings.dart';
 import '../reminders/kahf_day.dart';
 import '../reminders/kahf_strings.dart';
 import '../reminders/reminder_scheduler.dart';
@@ -11,6 +12,8 @@ import '../theme.dart';
 import '../wirds/portion.dart';
 import '../wirds/wird_repository.dart';
 import 'about_screen.dart';
+import 'ayah_tint_settings.dart';
+import '../large_ayah/large_ayah_tile.dart';
 import 'look_tile.dart';
 import 'text_size_tile.dart';
 
@@ -216,6 +219,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   @override
   Widget build(BuildContext context) {
     final look = context.look;
+    // The switch of the tint (feature 013, FR-024); an app with no such setting shows no switch.
+    final ayahTint = context.watch<AyahTintSettings?>();
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
       body: SafeArea(
@@ -225,6 +230,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             : ListView(
                 padding: const EdgeInsets.fromLTRB(18, 6, 18, 40),
                 children: [
+                  // Feature 015: the large-ayah view, first so an elderly reader finds it at once.
+                  const LargeAyahTile(),
                   const LookTile(),
                   if (_allowed == false) ...[
                     _PermissionCard(
@@ -275,6 +282,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                       onTap: _pickTime,
                     ),
                   const TextSizeTile(),
+                  if (ayahTint != null)
+                    SwitchListTile(
+                      key: const ValueKey('ayah-tint-switch'),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(kAyahTintTitle),
+                      subtitle: Text(
+                        kAyahTintSubtitle,
+                        style: TextStyle(color: look.textSecondary),
+                      ),
+                      value: ayahTint.enabled,
+                      // Saved at once; the reader behind follows it live.
+                      onChanged: ayahTint.set,
+                    ),
                   if (_backup != null) ...[
                     const _SectionLabel('النسخ الاحتياطي'),
                     ListTile(

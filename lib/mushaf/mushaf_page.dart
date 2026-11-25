@@ -60,6 +60,8 @@ class MushafPage extends StatelessWidget {
     this.bannerRuleColor,
     this.numberColor,
     this.endMarkerColor,
+    this.tintedWordIds = const {},
+    this.tintColor = const Color(0x290F766E),
   });
 
   final PageData data;
@@ -94,11 +96,18 @@ class MushafPage extends StatelessWidget {
   final Color? numberColor;
   final Color? endMarkerColor;
 
+  /// The words of the bookmarked ayat of this page (feature 013, research D6), drawn on [tintColor] with the same
+  /// per-word box as the highlight; a word that is also highlighted shows the highlight only. Paint only: no size.
+  final Set<int> tintedWordIds;
+  final Color tintColor;
+
   @override
   Widget build(BuildContext context) {
     final color = textColor ?? DefaultTextStyle.of(context).style.color ?? const Color(0xFF000000);
     final frame = frameColor ?? color.withValues(alpha: 0.6);
-    return Directionality(
+    // The page's size is the app's own setting (feature 003), never the phone's font size: every word is sized to
+    // fill its line exactly, so a system text scale above 1 would push the line out of its box (the A52 report).
+    return MediaQuery.withNoTextScaling(child: Directionality(
       textDirection: TextDirection.rtl,
       child: LayoutBuilder(builder: (context, constraints) {
         final g = _Geometry(constraints);
@@ -122,7 +131,7 @@ class MushafPage extends StatelessWidget {
           ],
         );
       }),
-    );
+    ));
   }
 
   /// The page number, a wide button when [onPageNumberTap] is given (the tap does not reach the page's own
@@ -192,6 +201,11 @@ class MushafPage extends StatelessWidget {
     if (highlightedWordIds.contains(word.id)) {
       child = DecoratedBox(
         decoration: BoxDecoration(color: highlightColor, borderRadius: BorderRadius.circular(4)),
+        child: child,
+      );
+    } else if (tintedWordIds.contains(word.id)) {
+      child = DecoratedBox(
+        decoration: BoxDecoration(color: tintColor, borderRadius: BorderRadius.circular(4)),
         child: child,
       );
     }
@@ -339,7 +353,7 @@ class MushafPageLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = textColor ?? DefaultTextStyle.of(context).style.color ?? const Color(0xFF000000);
-    return LayoutBuilder(builder: (context, constraints) {
+    return MediaQuery.withNoTextScaling(child: LayoutBuilder(builder: (context, constraints) {
       final g = _Geometry(constraints);
       return Column(
         children: [
@@ -355,6 +369,6 @@ class MushafPageLoading extends StatelessWidget {
           ),
         ],
       );
-    });
+    }));
   }
 }

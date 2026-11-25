@@ -1153,8 +1153,38 @@ class $BookmarksTable extends Bookmarks
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _surahMeta = const VerificationMeta('surah');
   @override
-  List<GeneratedColumn> get $columns => [id, wirdId, page, note, createdAt];
+  late final GeneratedColumn<int> surah = GeneratedColumn<int>(
+    'surah',
+    aliasedName,
+    true,
+    check: () => surah.isNull() | ComparableExpr(surah).isBetweenValues(1, 114),
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ayahMeta = const VerificationMeta('ayah');
+  @override
+  late final GeneratedColumn<int> ayah = GeneratedColumn<int>(
+    'ayah',
+    aliasedName,
+    true,
+    check: () =>
+        ayah.isNull().equalsExp(surah.isNull()) &
+        (ayah.isNull() | ComparableExpr(ayah).isBetweenValues(1, 286)),
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    wirdId,
+    page,
+    note,
+    createdAt,
+    surah,
+    ayah,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1196,6 +1226,18 @@ class $BookmarksTable extends Bookmarks
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('surah')) {
+      context.handle(
+        _surahMeta,
+        surah.isAcceptableOrUnknown(data['surah']!, _surahMeta),
+      );
+    }
+    if (data.containsKey('ayah')) {
+      context.handle(
+        _ayahMeta,
+        ayah.isAcceptableOrUnknown(data['ayah']!, _ayahMeta),
+      );
+    }
     return context;
   }
 
@@ -1225,6 +1267,14 @@ class $BookmarksTable extends Bookmarks
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      surah: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}surah'],
+      ),
+      ayah: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ayah'],
+      ),
     );
   }
 
@@ -1240,12 +1290,22 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   final int page;
   final String? note;
   final DateTime createdAt;
+
+  /// The ayah's surah, 1..114; null on a page bookmark (schema 2, data-model.md).
+  final int? surah;
+
+  /// The ayah's number, both or neither with [surah]. The cross-column rule lives here, on the column added second,
+  /// because SQLite refuses a CHECK that names a column that does not exist yet (research D1). 286 is the longest
+  /// surah; that the ayah exists in its surah is checked where rows are made and on import.
+  final int? ayah;
   const Bookmark({
     required this.id,
     this.wirdId,
     required this.page,
     this.note,
     required this.createdAt,
+    this.surah,
+    this.ayah,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1259,6 +1319,12 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       map['note'] = Variable<String>(note);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || surah != null) {
+      map['surah'] = Variable<int>(surah);
+    }
+    if (!nullToAbsent || ayah != null) {
+      map['ayah'] = Variable<int>(ayah);
+    }
     return map;
   }
 
@@ -1271,6 +1337,10 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       page: Value(page),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       createdAt: Value(createdAt),
+      surah: surah == null && nullToAbsent
+          ? const Value.absent()
+          : Value(surah),
+      ayah: ayah == null && nullToAbsent ? const Value.absent() : Value(ayah),
     );
   }
 
@@ -1285,6 +1355,8 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       page: serializer.fromJson<int>(json['page']),
       note: serializer.fromJson<String?>(json['note']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      surah: serializer.fromJson<int?>(json['surah']),
+      ayah: serializer.fromJson<int?>(json['ayah']),
     );
   }
   @override
@@ -1296,6 +1368,8 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       'page': serializer.toJson<int>(page),
       'note': serializer.toJson<String?>(note),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'surah': serializer.toJson<int?>(surah),
+      'ayah': serializer.toJson<int?>(ayah),
     };
   }
 
@@ -1305,12 +1379,16 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     int? page,
     Value<String?> note = const Value.absent(),
     DateTime? createdAt,
+    Value<int?> surah = const Value.absent(),
+    Value<int?> ayah = const Value.absent(),
   }) => Bookmark(
     id: id ?? this.id,
     wirdId: wirdId.present ? wirdId.value : this.wirdId,
     page: page ?? this.page,
     note: note.present ? note.value : this.note,
     createdAt: createdAt ?? this.createdAt,
+    surah: surah.present ? surah.value : this.surah,
+    ayah: ayah.present ? ayah.value : this.ayah,
   );
   Bookmark copyWithCompanion(BookmarksCompanion data) {
     return Bookmark(
@@ -1319,6 +1397,8 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       page: data.page.present ? data.page.value : this.page,
       note: data.note.present ? data.note.value : this.note,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      surah: data.surah.present ? data.surah.value : this.surah,
+      ayah: data.ayah.present ? data.ayah.value : this.ayah,
     );
   }
 
@@ -1329,13 +1409,16 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
           ..write('wirdId: $wirdId, ')
           ..write('page: $page, ')
           ..write('note: $note, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('surah: $surah, ')
+          ..write('ayah: $ayah')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, wirdId, page, note, createdAt);
+  int get hashCode =>
+      Object.hash(id, wirdId, page, note, createdAt, surah, ayah);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1344,7 +1427,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
           other.wirdId == this.wirdId &&
           other.page == this.page &&
           other.note == this.note &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.surah == this.surah &&
+          other.ayah == this.ayah);
 }
 
 class BookmarksCompanion extends UpdateCompanion<Bookmark> {
@@ -1353,12 +1438,16 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   final Value<int> page;
   final Value<String?> note;
   final Value<DateTime> createdAt;
+  final Value<int?> surah;
+  final Value<int?> ayah;
   const BookmarksCompanion({
     this.id = const Value.absent(),
     this.wirdId = const Value.absent(),
     this.page = const Value.absent(),
     this.note = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.surah = const Value.absent(),
+    this.ayah = const Value.absent(),
   });
   BookmarksCompanion.insert({
     this.id = const Value.absent(),
@@ -1366,6 +1455,8 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     required int page,
     this.note = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.surah = const Value.absent(),
+    this.ayah = const Value.absent(),
   }) : page = Value(page);
   static Insertable<Bookmark> custom({
     Expression<int>? id,
@@ -1373,6 +1464,8 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     Expression<int>? page,
     Expression<String>? note,
     Expression<DateTime>? createdAt,
+    Expression<int>? surah,
+    Expression<int>? ayah,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1380,6 +1473,8 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
       if (page != null) 'page': page,
       if (note != null) 'note': note,
       if (createdAt != null) 'created_at': createdAt,
+      if (surah != null) 'surah': surah,
+      if (ayah != null) 'ayah': ayah,
     });
   }
 
@@ -1389,6 +1484,8 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     Value<int>? page,
     Value<String?>? note,
     Value<DateTime>? createdAt,
+    Value<int?>? surah,
+    Value<int?>? ayah,
   }) {
     return BookmarksCompanion(
       id: id ?? this.id,
@@ -1396,6 +1493,8 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
       page: page ?? this.page,
       note: note ?? this.note,
       createdAt: createdAt ?? this.createdAt,
+      surah: surah ?? this.surah,
+      ayah: ayah ?? this.ayah,
     );
   }
 
@@ -1417,6 +1516,12 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (surah.present) {
+      map['surah'] = Variable<int>(surah.value);
+    }
+    if (ayah.present) {
+      map['ayah'] = Variable<int>(ayah.value);
+    }
     return map;
   }
 
@@ -1427,7 +1532,9 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
           ..write('wirdId: $wirdId, ')
           ..write('page: $page, ')
           ..write('note: $note, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('surah: $surah, ')
+          ..write('ayah: $ayah')
           ..write(')'))
         .toString();
   }
@@ -2526,6 +2633,8 @@ typedef $$BookmarksTableCreateCompanionBuilder = BookmarksCompanion Function({
   required int page,
   Value<String?> note,
   Value<DateTime> createdAt,
+  Value<int?> surah,
+  Value<int?> ayah,
 });
 typedef $$BookmarksTableUpdateCompanionBuilder = BookmarksCompanion Function({
   Value<int> id,
@@ -2533,6 +2642,8 @@ typedef $$BookmarksTableUpdateCompanionBuilder = BookmarksCompanion Function({
   Value<int> page,
   Value<String?> note,
   Value<DateTime> createdAt,
+  Value<int?> surah,
+  Value<int?> ayah,
 });
 
 final class $$BookmarksTableReferences
@@ -2583,6 +2694,16 @@ class $$BookmarksTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get surah => $composableBuilder(
+    column: $table.surah,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ayah => $composableBuilder(
+    column: $table.ayah,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2639,6 +2760,16 @@ class $$BookmarksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get surah => $composableBuilder(
+    column: $table.surah,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ayah => $composableBuilder(
+    column: $table.ayah,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$WirdsTableOrderingComposer get wirdId {
     final $$WirdsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -2683,6 +2814,12 @@ class $$BookmarksTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get surah =>
+      $composableBuilder(column: $table.surah, builder: (column) => column);
+
+  GeneratedColumn<int> get ayah =>
+      $composableBuilder(column: $table.ayah, builder: (column) => column);
 
   $$WirdsTableAnnotationComposer get wirdId {
     final $$WirdsTableAnnotationComposer composer = $composerBuilder(
@@ -2741,12 +2878,16 @@ class $$BookmarksTableTableManager
                 Value<int> page = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<int?> surah = const Value.absent(),
+                Value<int?> ayah = const Value.absent(),
               }) => BookmarksCompanion(
                 id: id,
                 wirdId: wirdId,
                 page: page,
                 note: note,
                 createdAt: createdAt,
+                surah: surah,
+                ayah: ayah,
               ),
           createCompanionCallback:
               ({
@@ -2755,12 +2896,16 @@ class $$BookmarksTableTableManager
                 required int page,
                 Value<String?> note = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<int?> surah = const Value.absent(),
+                Value<int?> ayah = const Value.absent(),
               }) => BookmarksCompanion.insert(
                 id: id,
                 wirdId: wirdId,
                 page: page,
                 note: note,
                 createdAt: createdAt,
+                surah: surah,
+                ayah: ayah,
               ),
           withReferenceMapper: (p0) => p0
               .map(

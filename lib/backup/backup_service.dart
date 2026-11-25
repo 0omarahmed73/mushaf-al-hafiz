@@ -2,14 +2,23 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../mushaf/models.dart';
 import '../wirds/db.dart';
 import '../wirds/portion.dart';
 
 /// `app` value of a backup file; a file with any other value comes from another app.
 const String kBackupApp = 'mushaf-hafiz';
 
-/// The only backup format this app can read and write.
+/// The base backup format: what the app writes when no bookmark is an ayah bookmark (byte for byte what it wrote before
+/// feature 013), and what an older build reads.
 const int kBackupVersion = 1;
+
+/// The format that carries the surah and the ayah of an ayah bookmark (feature 013, research D3): written only when at
+/// least one exists, so a file with page bookmarks only stays readable by an older build.
+const int kBackupVersionAyah = 2;
+
+/// The highest version this app reads; a file above it is [BackupProblem.newerVersion].
+const int kBackupHighestRead = kBackupVersionAyah;
 
 /// Why a file was refused (contracts/backup-file.md).
 enum BackupProblem {
@@ -44,11 +53,13 @@ const Set<String> kKeptOnImport = {'tipsSeen'};
 /// everything in one transaction (spec FR-039, FR-040).
 class BackupService {
   /// [debugHook] is called with 'cleared', 'wirds', 'wirdDays' and 'bookmarks' during an import, so a
-  /// test can make the import fail halfway.
-  BackupService(this._db, {this.debugHook});
+  /// test can make the import fail halfway. [meta] is the fixed edition's data the ayah bookmarks of a file are checked
+  /// against (the ayah exists, the page is where it begins); without it a file with an ayah bookmark is refused.
+  BackupService(this._db, {this.debugHook, this.meta});
 
   final AppDatabase _db;
   final Future<void> Function(String stage)? debugHook;
+  final MushafMeta? meta;
 
   // ------------------------------------------------------------------ export
 
@@ -68,9 +79,10 @@ class BackupService {
     final settings = await (_db.select(
       _db.settings,
     )..orderBy([(s) => OrderingTerm.asc(s.key)])).get();
+    final ayat = marks.any((b) => b.surah != null);
     return const JsonEncoder.withIndent('  ').convert({
       'app': kBackupApp,
-      'version': kBackupVersion,
+      'version': ayat ? kBackupVersionAyah : kBackupVersion,
       'exportedAt': _iso(now ?? DateTime.now()),
       'wirds': [
         for (final w in wirds)
@@ -107,6 +119,8 @@ class BackupService {
             'page': b.page,
             'note': b.note,
             'createdAt': _iso(b.createdAt),
+            if (ayat) 'surah': b.surah,
+            if (ayat) 'ayah': b.ayah,
           },
       ],
       'settings': {for (final s in settings) s.key: s.value},
@@ -116,12 +130,12 @@ class BackupService {
   // ------------------------------------------------------------------ import
 
   /// Throws [BackupFormatException] if [text] is not a backup this app can import; changes nothing.
-  void check(String text) => _parse(text);
+  void check(String text) => _parse(text, meta);
 
   /// Replaces every wird, portion, bookmark and setting with the file's. The file is checked first;
   /// if it is refused, or anything fails on the way, nothing changes.
   Future<void> importJson(String text) async {
-    final data = _parse(text);
+    final data = _parse(text, meta);
     await _db.transaction(() async {
       final kept = await (_db.select(
         _db.settings,
@@ -172,7 +186,7 @@ class _Parsed {
 BackupFormatException _bad(String message) =>
     BackupFormatException(BackupProblem.invalid, message);
 
-_Parsed _parse(String text) {
+_Parsed _parse(String text, MushafMeta? meta) {
   Object? decoded;
   try {
     decoded = jsonDecode(text);
@@ -193,7 +207,7 @@ _Parsed _parse(String text) {
   }
   final version = decoded['version'];
   if (version is! int || version < 1) throw _bad('missing or odd version');
-  if (version > kBackupVersion) {
+  if (version > kBackupHighestRead) {
     throw const BackupFormatException(
       BackupProblem.newerVersion,
       'written by a newer version',
@@ -263,13 +277,17 @@ _Parsed _parse(String text) {
     }
     final note = m['note'];
     if (note != null && note is! String) throw _bad('bookmark note');
+    final page = _int(m, 'page', min: 1, max: 604);
+    final ayah = _ayahOf(m, version, page, meta);
     bookmarks.add(
       BookmarksCompanion.insert(
         id: Value(id),
         wirdId: Value(wirdId),
-        page: _int(m, 'page', min: 1, max: 604),
+        page: page,
         note: Value(note as String?),
         createdAt: Value(_instant(m, 'createdAt')),
+        surah: Value(ayah?.surah),
+        ayah: Value(ayah?.ayah),
       ),
     );
   }
@@ -288,6 +306,30 @@ _Parsed _parse(String text) {
   }
 
   return _Parsed(wirds, days, bookmarks, settings);
+}
+
+/// The ayah of a bookmark row, or null for a page bookmark (feature 013, data-model.md Backup file). A version-1 file never
+/// carries one; in version 2 `surah` and `ayah` are both absent or null, or both whole numbers of an ayah that exists in
+/// the fixed edition whose page is [page]. Anything else, or an ayah with no [meta] to check it against, is invalid.
+({int surah, int ayah})? _ayahOf(
+  Map<String, dynamic> m,
+  int version,
+  int page,
+  MushafMeta? meta,
+) {
+  if (m['surah'] == null && m['ayah'] == null) return null;
+  if (version < kBackupVersionAyah) throw _bad('an ayah in a version-1 file');
+  if (m['surah'] == null || m['ayah'] == null) {
+    throw _bad('a surah without an ayah, or an ayah without a surah');
+  }
+  final surah = _int(m, 'surah', min: 1, max: MushafMeta.surahCount);
+  final ayah = _int(m, 'ayah', min: 1);
+  if (meta == null) throw _bad('ayah bookmarks cannot be checked');
+  if (ayah > meta.surah(surah).ayahs) throw _bad('no ayah $surah:$ayah');
+  if (meta.pageOfAyah(surah, ayah) != page) {
+    throw _bad('ayah $surah:$ayah does not begin on page $page');
+  }
+  return (surah: surah, ayah: ayah);
 }
 
 Iterable<Map<String, dynamic>> _rows(Map<String, dynamic> m, String key) {

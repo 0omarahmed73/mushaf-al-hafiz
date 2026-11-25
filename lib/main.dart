@@ -7,6 +7,7 @@ import 'ayah/share_service.dart';
 import 'backup/backup.dart';
 import 'backup/backup_files.dart';
 import 'backup/backup_service.dart';
+import 'large_ayah/large_ayah_settings.dart';
 import 'look/look_settings.dart';
 import 'motion/frame_trace.dart';
 import 'mushaf/mushaf_repository.dart';
@@ -19,6 +20,7 @@ import 'reminders/background_refresh.dart';
 import 'reminders/reminder_scheduler.dart';
 import 'reminders/reminder_service.dart';
 import 'search/search_service.dart';
+import 'settings/ayah_tint_settings.dart';
 import 'settings/text_size_settings.dart';
 import 'splash/app_when_ready.dart';
 import 'splash/splash_gate.dart';
@@ -71,6 +73,12 @@ Future<MushafApp> _bootApp() async {
   // The chosen look is read before the first frame too, so the app never shows the other look first.
   final appLook = AppLookSettings(wirdRepository);
   await appLook.load();
+  // The tint switch too, so the first frame of the reader already tints, or does not (feature 013).
+  final ayahTint = AyahTintSettings(wirdRepository);
+  await ayahTint.load();
+  // The large-ayah view too: when it was left on, the app opens on it (feature 015, constitution 2.2.0 Principle II).
+  final largeAyah = LargeAyahSettings(wirdRepository, meta: await mushafRepository.loadMeta());
+  await largeAyah.load();
   return MushafApp(
     // The reader stays the first screen; the tips open over it once, after the splash (feature 008).
     home: ValueListenableBuilder<bool>(
@@ -88,7 +96,9 @@ Future<MushafApp> _bootApp() async {
     navigatorKey: navigatorKey,
     pageRenderer: pageRenderer,
     textSize: textSize,
+    ayahTint: ayahTint,
     appLook: appLook,
+    largeAyah: largeAyah,
     // Reads nothing now: the text of the ayat is read and folded when the search is first opened (feature 011, FR-022).
     searchService: SearchService(
       bundle: rootBundle,
@@ -100,7 +110,7 @@ Future<MushafApp> _bootApp() async {
       meta: await mushafRepository.loadMeta(),
     ),
     backup: Backup(
-      service: BackupService(database),
+      service: BackupService(database, meta: await mushafRepository.loadMeta()),
       files: PlatformBackupFiles(),
     ),
   );

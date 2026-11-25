@@ -1,19 +1,25 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../ayah/ayah_ref.dart';
+import '../mushaf/ayah_bookmark_strings.dart';
+import '../mushaf/models.dart';
+import '../search/ayah_target.dart';
 import '../theme.dart';
 import 'today_panel.dart';
 import 'wird_repository.dart';
 
 /// «علامات»: adds a bookmark on the page being shown (with an optional note) and lists every
 /// bookmark, newest first, with its page, note and wird name or «عامة». Tapping one pops the sheet
-/// with its page; swiping one away deletes it (spec FR-033).
+/// with its page; swiping one away deletes it (spec FR-033). An ayah bookmark (feature 013) is a row of the same list that
+/// names its ayah and pops an [AyahTarget] instead of the page.
 class BookmarksSheet extends StatefulWidget {
   const BookmarksSheet({
     super.key,
     required this.page,
     required this.ownerName,
     required this.onAdd,
+    this.meta,
   });
 
   /// The page a new bookmark would be on.
@@ -23,6 +29,9 @@ class BookmarksSheet extends StatefulWidget {
   final String? ownerName;
 
   final Future<void> Function(String? note) onAdd;
+
+  /// The surah names of ayah rows (feature 013); without it an ayah row names its surah by number.
+  final MushafMeta? meta;
 
   @override
   State<BookmarksSheet> createState() => _BookmarksSheetState();
@@ -107,8 +116,9 @@ class _BookmarksSheetState extends State<BookmarksSheet> {
                       itemCount: entries.length,
                       itemBuilder: (context, i) => _BookmarkTile(
                         entry: entries[i],
+                        meta: widget.meta,
                         onOpen: () =>
-                            Navigator.of(context).pop(entries[i].bookmark.page),
+                            Navigator.of(context).pop(_target(entries[i])),
                         onDelete: () =>
                             _repo.removeBookmark(entries[i].bookmark.id),
                       ),
@@ -124,14 +134,24 @@ class _BookmarksSheetState extends State<BookmarksSheet> {
   }
 }
 
+/// What a tap on a row hands back: the page of a page bookmark, as before, or the ayah of an ayah bookmark.
+Object _target(BookmarkEntry entry) {
+  final b = entry.bookmark;
+  final surah = b.surah, ayah = b.ayah;
+  if (surah == null || ayah == null) return b.page;
+  return AyahTarget(AyahRef(surah, ayah), b.page);
+}
+
 class _BookmarkTile extends StatelessWidget {
   const _BookmarkTile({
     required this.entry,
     required this.onOpen,
     required this.onDelete,
+    this.meta,
   });
 
   final BookmarkEntry entry;
+  final MushafMeta? meta;
   final VoidCallback onOpen;
   final VoidCallback onDelete;
 
@@ -141,6 +161,10 @@ class _BookmarkTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(look.rowRadius(14));
     final b = entry.bookmark;
+    final surah = b.surah, ayah = b.ayah;
+    final isAyah = surah != null && ayah != null;
+    final surahName = !isAyah ? '' : meta?.surah(surah).name ?? '$surah';
+    final owner = entry.wirdName ?? kAyahOwnerGeneral;
     final swipe = Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: scheme.error, borderRadius: radius),
@@ -159,48 +183,99 @@ class _BookmarkTile extends StatelessWidget {
         child: Material(
           color: look.cardFill,
           borderRadius: radius,
-          child: InkWell(
-            borderRadius: radius,
+          child: _ayahSemantics(
+            isAyah: isAyah,
+            label: isAyah ? kAyahRowLabel(surahName, ayah, b.page, owner) : '',
             onTap: onOpen,
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: look.cardInk),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ص ${b.page}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: onOpen,
+              child: DefaultTextStyle.merge(
+                style: TextStyle(color: look.cardInk),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, row) => Row(
+                      children: [
+                        // The ayah row's own mark (feature 013): an icon that a page row does not have.
+                        if (isAyah)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 12),
+                            child: Icon(
+                              Icons.auto_stories_outlined,
+                              key: ValueKey('bookmark-ayah-icon-${b.id}'),
+                              size: 22,
+                              color: look.cardInk,
                             ),
                           ),
-                          if (b.note != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                b.note!,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: look.cardMuted,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (isAyah)
+                                _excluded(
+                                  Text(
+                                    kAyahRowTitle(surahName, ayah),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
+                              _excluded(
+                                Text(
+                                  'ص ${b.page}',
+                                  style: isAyah
+                                      ? TextStyle(
+                                          fontSize: 13,
+                                          color: look.cardMuted,
+                                        )
+                                      : const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                ),
+                                isAyah,
                               ),
+                              if (b.note != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    b.note!,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: look.cardMuted,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // An ayah row has an icon more: there its tag may shrink and wrap, so a narrow phone with a large
+                        // font never pushes «ص P» out (a page row is as before).
+                        if (isAyah)
+                          Flexible(
+                            child: _excluded(CardTag(entry.wirdName ?? 'عامة')),
+                          )
+                        else
+                          // A page row is as before while its tag takes at most half the row. A longer one (a long wird
+                          // name on a narrow phone with a large system font) wraps inside that half, so «ص P» is never
+                          // squeezed out.
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: row.maxWidth / 2,
                             ),
-                        ],
-                      ),
+                            child: CardTag(entry.wirdName ?? 'عامة'),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    CardTag(entry.wirdName ?? 'عامة'),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -209,6 +284,27 @@ class _BookmarkTile extends StatelessWidget {
       ),
     );
   }
+
+  /// An ayah row is one button for a screen reader, named «علامة على سورة X آية N، صفحة P، …»; its note is still read. A page
+  /// row is as before.
+  static Widget _ayahSemantics({
+    required bool isAyah,
+    required String label,
+    required VoidCallback onTap,
+    required Widget child,
+  }) => isAyah
+      ? Semantics(
+          container: true,
+          button: true,
+          label: label,
+          onTap: onTap,
+          child: child,
+        )
+      : child;
+
+  /// The parts of an ayah row its label already says; a page row's parts are as before.
+  static Widget _excluded(Widget child, [bool exclude = true]) =>
+      exclude ? ExcludeSemantics(child: child) : child;
 }
 
 /// Asks for the optional note. Pops the note's text (possibly empty) to save, or null to cancel.

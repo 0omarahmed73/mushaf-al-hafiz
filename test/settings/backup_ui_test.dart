@@ -135,7 +135,7 @@ void main() {
       final good = jsonDecode(await otherState(t)) as Map<String, dynamic>;
       await expectRefusedWith(t, repo, jsonEncode({...good, 'app': 'other-app'}),
           'هذا الملف ليس نسخة احتياطية من «مصحف الحافظ». لم يتغيّر شيء.');
-      await expectRefusedWith(t, repo, jsonEncode({...good, 'version': 2}),
+      await expectRefusedWith(t, repo, jsonEncode({...good, 'version': 3}),
           'هذه النسخة الاحتياطية أحدث من هذا التطبيق. لم يتغيّر شيء.');
       await expectRefusedWith(t, repo, '{ not json',
           'ملف النسخة الاحتياطية تالف أو غير صالح. لم يتغيّر شيء.');

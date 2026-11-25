@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../ayah/ayah_bookmark_port.dart';
 import '../ayah/ayah_ref.dart';
 import '../ayah/ayah_repository.dart';
 import '../ayah/share_service.dart';
@@ -12,6 +13,12 @@ import '../ayah/ui/ayah_sheet.dart';
 import '../ayah/ui/pdf_progress_strip.dart';
 import '../khatm/khatm_dua_screen.dart';
 import '../khatm/last_page_swipe.dart';
+import '../large_ayah/large_ayah_pager.dart';
+import '../large_ayah/large_ayah_settings.dart';
+import '../large_ayah/large_ayah_strings.dart';
+import '../large_ayah/page_screens.dart';
+import '../large_ayah/screen_layout.dart';
+import '../large_ayah/word_measurer.dart';
 import '../look/look_settings.dart';
 import '../motion/fade_in_on_change.dart';
 import '../motion/fade_slide_switcher.dart';
@@ -21,12 +28,16 @@ import '../motion/motion.dart';
 import '../pdf/pdf_job.dart';
 import '../reminders/reminder_scheduler.dart';
 import '../search/ayah_target.dart';
+import '../settings/ayah_tint_settings.dart';
 import '../settings/settings_screen.dart';
+import '../wirds/ayah_bookmark_change.dart';
 import '../wirds/bookmarks_sheet.dart';
 import '../wirds/portion.dart';
 import '../wirds/today_panel.dart';
 import '../wirds/wird_repository.dart';
 import '../wirds/wirds_screen.dart';
+import 'ayah_bookmark_strings.dart';
+import 'ayah_tint.dart';
 import 'bookmark_button.dart';
 import 'bookmark_strings.dart';
 import 'go_to_page_dialog.dart';
@@ -88,6 +99,14 @@ class _ReaderScreenState extends State<ReaderScreen>
   StreamSubscription<List<TodayEntry>>? _todaySub;
   Timer? _dayBoundary;
   StreamSubscription<String>? _tapSub;
+  // The large-ayah view (feature 015): its settings, whether it replaces the Mushaf pager now, where its pager opens (a
+  // new token re-anchors it), and the page of the screen it showed last (a page change from elsewhere re-anchors it).
+  LargeAyahSettings? _large;
+  bool _largeOn = false;
+  late final WordMeasurer _measurer;
+  LargeTarget _largeTarget = const LargeTarget.page(1);
+  int _largeToken = 0;
+  int? _largeShownPage;
 
   @override
   void initState() {
@@ -97,6 +116,8 @@ class _ReaderScreenState extends State<ReaderScreen>
     _controller = ReaderController(_repo);
     _mushaf = context.read<MushafRepository>();
     _fonts = PageFontLoader();
+    _measurer = WordMeasurer(_fonts);
+    _large = context.read<LargeAyahSettings?>()?..addListener(_onLargeChanged);
     _pdf = context.read<PdfJob?>()?..addListener(_onPdfChanged);
     WidgetsBinding.instance.addObserver(this);
     _start();
@@ -104,6 +125,7 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   Future<void> _start() async {
     final meta = await _mushaf.loadMeta();
+    _controller.attachMeta(meta);
     await _controller.init();
     // A notification that started the app decides where the reader opens.
     final launchedBy = _reminders?.taps.takePending();
@@ -117,6 +139,8 @@ class _ReaderScreenState extends State<ReaderScreen>
     _controller.addListener(_onController);
     _fonts.prefetch(_controller.page);
     _shown = _controller.page;
+    _largeOn = _large?.on ?? false;
+    if (_largeOn) _largeTarget = _largeStart(meta);
     setState(() => _meta = meta);
     unawaited(_warmAround());
   }
@@ -124,6 +148,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void dispose() {
     _pdf?.removeListener(_onPdfChanged);
+    _large?.removeListener(_onLargeChanged);
     WidgetsBinding.instance.removeObserver(this);
     _todaySub?.cancel();
     _dayBoundary?.cancel();
@@ -220,10 +245,56 @@ class _ReaderScreenState extends State<ReaderScreen>
       );
   }
 
-  /// «علامات»: the bookmarks sheet; tapping a bookmark there opens its page in browse mode.
+  /// What the ayah sheet's bookmark and note rows read and write (feature 013): the controller's in-memory state and its
+  /// writes, and the message below.
+  late final AyahBookmarkPort _ayahBookmarks = AyahBookmarkPort(
+    state: _controller.ayahState,
+    toggle: _controller.toggleAyahBookmark,
+    saveNote: _controller.saveAyahNote,
+    onChange: _showAyahBookmarkMessage,
+  );
+
+  /// The message after a tap of the ayah sheet's bookmark row or a save of its note (feature 013, contracts/ui.md §3): the
+  /// same floating message as the page icon's, above the bottom bar, with «تراجع», which undoes exactly that change while
+  /// the message is shown; the next message replaces it.
+  void _showAyahBookmarkMessage(AyahBookmarkChange change) {
+    final meta = _meta;
+    if (!mounted || meta == null) return;
+    final name = meta.surah(change.ref.surah).name;
+    final ayah = change.ref.ayah;
+    final text = switch (change.kind) {
+      AyahChangeKind.added => kAyahBookmarkAdded(name, ayah),
+      AyahChangeKind.removed => kAyahBookmarkRemoved(name, ayah),
+      AyahChangeKind.createdWithNote => kAyahNoteCreated(name, ayah),
+      AyahChangeKind.noteReplaced => kAyahNoteSaved(name, ayah),
+      AyahChangeKind.noteCleared => kAyahNoteRemoved(name, ayah),
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          persist: false,
+          margin: EdgeInsets.fromLTRB(
+            12,
+            0,
+            12,
+            (_barsVisible ? _bottomBarHeight : 0) + 8,
+          ),
+          content: Text(text),
+          action: SnackBarAction(
+            label: kBookmarkUndo,
+            onPressed: () => _controller.undoAyahBookmarkChange(change),
+          ),
+        ),
+      );
+  }
+
+  /// «علامات»: the bookmarks sheet; tapping a bookmark there opens its page in browse mode, and an ayah bookmark (feature
+  /// 013) hands back an [AyahTarget] that is shown as a search result is: its page, its words highlighted and in view.
   Future<void> _openBookmarks() async {
     _clearFound();
-    final page = await showModalBottomSheet<int>(
+    final result = await showModalBottomSheet<Object>(
       context: context,
       isScrollControlled: true,
       backgroundColor: context.look.background,
@@ -234,11 +305,17 @@ class _ReaderScreenState extends State<ReaderScreen>
         page: _controller.page,
         ownerName: _controller.browsing ? null : _controller.wird?.name,
         onAdd: (note) => _controller.addBookmark(note: note),
+        meta: _meta,
       ),
     );
     // The sheet may have added or deleted bookmarks directly: the icon reads the table again once it is closed.
     await _controller.refreshBookmarks();
-    if (page != null) await _controller.jumpTo(page);
+    switch (result) {
+      case final int page:
+        await _controller.jumpTo(page);
+      case final AyahTarget target:
+        await _showFoundAyah(target);
+    }
   }
 
   Future<void> _openSettings() async {
@@ -247,11 +324,15 @@ class _ReaderScreenState extends State<ReaderScreen>
       MaterialPageRoute<bool>(builder: (_) => const SettingsScreen()),
     );
     if (restored != true || !mounted) return;
-    // A backup was restored: show the restored wird and position, and the text size it holds.
+    // A backup was restored: show the restored wird and position, and the text size and the tint switch it holds.
     final size = context.read<TextSizeSettings?>();
+    final tint = context.read<AyahTintSettings?>();
     await _controller.reload();
     await size?.reload();
+    await tint?.reload();
+    await _large?.reload();
     if (!mounted) return;
+    if (_largeOn) _anchorLargeTo(LargeTarget.page(_controller.page, token: ++_largeToken));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('تم استرجاع النسخة الاحتياطية')),
     );
@@ -284,7 +365,13 @@ class _ReaderScreenState extends State<ReaderScreen>
         debugPrint('AYAHMENU ms=${stopwatch.elapsedMilliseconds}');
       });
     }
-    await showAyahSheet(context, ref: ref, meta: meta, page: data.page);
+    await showAyahSheet(
+      context,
+      ref: ref,
+      meta: meta,
+      page: data.page,
+      bookmarks: _ayahBookmarks,
+    );
     if (!mounted) return;
     setState(() {
       _menuOpen = false;
@@ -435,6 +522,12 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// The controller changed (a page turn, a jump, a wird switch): move the pager to the page, and make the pager again
   /// only if the shown page has another lock than the one the pager was made with (feature 010 T011).
   void _onController() {
+    // A jump, a wird switch or a restored position moved the page away from the large-ayah screen shown: its pager opens
+    // that page's first screen. Its own screens move the page too, and then the pages agree.
+    final shownLarge = _largeShownPage;
+    if (_largeOn && shownLarge != null && shownLarge != _controller.page) {
+      _anchorLargeTo(LargeTarget.page(_controller.page, token: ++_largeToken));
+    }
     _syncPager();
     if (mounted && _pagerWidget != null && _pageLocked != _pagerLocked) {
       setState(() {});
@@ -532,7 +625,105 @@ class _ReaderScreenState extends State<ReaderScreen>
       // A new token every time: a result on the page already shown brings the ayah into view again.
       _reveal = ids.isEmpty ? null : PageReveal(ids, ++_revealToken);
     });
+    if (_largeOn) _anchorLargeTo(LargeTarget.ayah(target.ref, token: ++_largeToken), page: target.page);
     if (jump) await _controller.jumpTo(target.page);
+  }
+
+  // ---------------------------------------------------------------- the large-ayah view (feature 015)
+
+  /// Where the view opens at start: the remembered ayah when it is on the position's page, else that page's first screen
+  /// (research D6).
+  LargeTarget _largeStart(MushafMeta meta) {
+    final at = _large?.at;
+    if (at != null && meta.pageOfAyah(at.surah, at.ayah) == _controller.page) {
+      return LargeTarget.ayah(at, token: ++_largeToken);
+    }
+    return LargeTarget.page(_controller.page, token: ++_largeToken);
+  }
+
+  void _anchorLargeTo(LargeTarget target, {int? page}) {
+    _largeShownPage = page ?? target.page;
+    setState(() => _largeTarget = target);
+  }
+
+  /// The view was turned on or off, or its count or size changed.
+  void _onLargeChanged() {
+    final on = _large?.on ?? false;
+    if (!mounted) return;
+    if (on == _largeOn) {
+      setState(() {});
+      return;
+    }
+    setState(() {
+      _largeOn = on;
+      if (on) {
+        _clearFound();
+        _largeShownPage = null;
+        _largeTarget = LargeTarget.page(_controller.page, token: ++_largeToken);
+      } else {
+        // The Mushaf pager comes back on the page of the last screen shown, with a new controller (the old one had no
+        // pager while the view was on).
+        final old = _pages;
+        _pages = PageController(initialPage: _controller.page - 1);
+        _pagerWidget = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) => old?.dispose());
+      }
+    });
+  }
+
+  void _onLargeScreen(LargeScreen screen) {
+    if (_found != null && screen.page != _highlightPage) _clearFound();
+    _largeShownPage = screen.page;
+    unawaited(_large?.setAt(screen.ayat.first));
+    if (screen.page != _controller.page) unawaited(_controller.onPageShown(screen.page));
+  }
+
+  Future<void> _onLargeLongPress(int page, MushafWord word) async {
+    final data = await _mushaf.loadPage(page);
+    if (!mounted) return;
+    await _openAyahMenu(data, word);
+  }
+
+  Widget _largeView(MushafMeta meta) {
+    final large = _large!;
+    final look = context.watch<AppLookSettings?>()?.pageLook ?? PageLook.screen;
+    final tintOn = context.watch<AyahTintSettings?>()?.enabled ?? true;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: LargeAyahPager(
+            sourceFor: (g) => PageScreens(mushaf: _mushaf, measurer: _measurer, geometry: g, count: large.count),
+            layoutKey: large.count,
+            pageOfAyah: (a) => meta.pageOfAyah(a.surah, a.ayah),
+            meta: meta,
+            factor: large.factor,
+            target: _largeTarget,
+            look: look,
+            highlightedWordIds: _highlight,
+            ayahMarks: tintOn ? _controller.ayahMarks : null,
+            onScreenShown: _onLargeScreen,
+            onWordLongPress: _onLargeLongPress,
+            onTap: _toggleBars,
+            onPastEnd: () => unawaited(_openDua()),
+          ),
+        ),
+        // «المصحف»: at the end of the screen's header line, which keeps that place free (contracts/ui.md).
+        PositionedDirectional(
+          top: LargeGeometry.vPad,
+          end: LargeGeometry.hPad - 8,
+          child: Tooltip(
+            message: LargeAyahStrings.backToMushafTooltip,
+            child: TextButton.icon(
+              key: const ValueKey('large-back'),
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48), foregroundColor: look.ink),
+              onPressed: () => large.setOn(false),
+              icon: const Icon(Icons.menu_book),
+              label: const Text(LargeAyahStrings.backToMushaf),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   /// The next touch, turn or opened screen ends the found ayah's highlight (spec FR-013; research D4). Does nothing, and
@@ -612,6 +803,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                   ? _highlight
                   : const {},
               reveal: _highlightPage == index + 1 ? _reveal : null,
+              // The same notifier object every time: the kept pager is never made again for a bookmark (feature 013).
+              ayahMarks: _controller.ayahMarks,
               onAyahLongPress: _openAyahMenu,
               onPageNumberTap: _askPage,
               onLockChanged: _onLockChanged,
@@ -680,10 +873,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                     ),
                   ),
                   Expanded(
-                    child: JumpFade(
-                      controller: _jump,
-                      child: _pagerFor(meta, pages),
-                    ),
+                    child: _largeOn && _large != null
+                        ? _largeView(meta)
+                        : JumpFade(
+                            controller: _jump,
+                            child: _pagerFor(meta, _pages!),
+                          ),
                   ),
                   SizedBox(
                     height: _bottomBarHeight,
@@ -781,6 +976,7 @@ class _PageItem extends StatefulWidget {
     required this.fonts,
     required this.highlightedWordIds,
     required this.reveal,
+    required this.ayahMarks,
     required this.onAyahLongPress,
     required this.onPageNumberTap,
     required this.onLockChanged,
@@ -798,6 +994,9 @@ class _PageItem extends StatefulWidget {
 
   /// The found ayah's words to bring into view on this page (feature 011); null for every other page and when none was found.
   final PageReveal? reveal;
+
+  /// The ayat that have an ayah bookmark of the current scope (feature 013): this page tints its own words of them.
+  final ValueListenable<Set<AyahRef>> ayahMarks;
 
   /// A long press on a word of this page's [PageData].
   final void Function(PageData data, MushafWord word) onAyahLongPress;
@@ -861,8 +1060,14 @@ class _PageItemState extends State<_PageItem> {
   PageLook? _cardLook;
   MushafMeta? _cardMeta;
   Set<int> _cardHighlight = const {};
+  Set<int> _cardTint = const {};
 
-  MushafPageCard _cardFor(PageData data, String family, PageLook look) {
+  MushafPageCard _cardFor(
+    PageData data,
+    String family,
+    PageLook look,
+    Set<int> tint,
+  ) {
     final cached = _card;
     final highlight = widget.highlightedWordIds;
     if (cached != null &&
@@ -870,7 +1075,8 @@ class _PageItemState extends State<_PageItem> {
         _cardFamily == family &&
         _cardLook == look &&
         identical(_cardMeta, widget.meta) &&
-        setEquals(_cardHighlight, highlight)) {
+        setEquals(_cardHighlight, highlight) &&
+        setEquals(_cardTint, tint)) {
       return cached;
     }
     _cardData = data;
@@ -878,12 +1084,14 @@ class _PageItemState extends State<_PageItem> {
     _cardLook = look;
     _cardMeta = widget.meta;
     _cardHighlight = highlight;
+    _cardTint = tint;
     return _card = MushafPageCard(
       data: data,
       meta: widget.meta,
       fontFamily: family,
       look: look,
       highlightedWordIds: highlight,
+      tintedWordIds: tint,
       onWordLongPress: (word) => widget.onAyahLongPress(data, word),
       onPageNumberTap: () => widget.onPageNumberTap(),
     );
@@ -893,6 +1101,8 @@ class _PageItemState extends State<_PageItem> {
   Widget build(BuildContext context) {
     // The owner's chosen look of the page (Emerald & Gold when the app has no look setting); it changes live.
     final look = context.watch<AppLookSettings?>()?.pageLook ?? PageLook.screen;
+    // The Settings switch of the tint (feature 013, FR-024); an app with no such setting tints.
+    final tintOn = context.watch<AyahTintSettings?>()?.enabled ?? true;
     final page = FutureBuilder<(PageData, String)>(
       future: _future,
       // A page whose text and font are already there (a neighbour prepared at rest, a page seen a moment ago) has its
@@ -903,7 +1113,17 @@ class _PageItemState extends State<_PageItem> {
         if (loaded == null) {
           return MushafPageCard.loading(page: widget.page, look: look);
         }
-        return _cardFor(loaded.$1, loaded.$2, look);
+        // Only this builder runs when the bookmarked ayat change, and the card is made again only if the words of this page
+        // that are tinted changed (setEquals in _cardFor): a bookmark of another page builds no MushafPage (FR-026).
+        return ValueListenableBuilder<Set<AyahRef>>(
+          valueListenable: widget.ayahMarks,
+          builder: (context, marks, _) => _cardFor(
+            loaded.$1,
+            loaded.$2,
+            look,
+            tintOn ? ayahTintIds(loaded.$1, marks) : const {},
+          ),
+        );
       },
     );
     // The size setting scales the page card as a whole; PageViewport gives it its box, its scrolling and its zoom.

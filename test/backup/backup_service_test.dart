@@ -158,7 +158,7 @@ void main() {
     }
 
     test('version 2 is a newer backup', () async {
-      await expectRefused(jsonEncode(edited((m) => m['version'] = 2)), BackupProblem.newerVersion);
+      await expectRefused(jsonEncode(edited((m) => m['version'] = 3)), BackupProblem.newerVersion);
     });
 
     test('another app\'s file', () async {

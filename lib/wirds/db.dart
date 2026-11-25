@@ -52,7 +52,8 @@ class WirdDays extends Table {
   Set<Column> get primaryKey => {wirdId, day};
 }
 
-/// A page bookmark; `wirdId == null` is a general bookmark («عامة»).
+/// A bookmark; `wirdId == null` is a general bookmark («عامة»). With [surah] and [ayah] it is an ayah bookmark (feature
+/// 013) whose [page] is the page where that ayah begins; without them (every row made before schema 2) a page bookmark.
 class Bookmarks extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get wirdId => integer().nullable().references(
@@ -63,6 +64,19 @@ class Bookmarks extends Table {
   IntColumn get page => integer().check(page.isBetweenValues(1, 604))();
   TextColumn get note => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// The ayah's surah, 1..114; null on a page bookmark (schema 2, data-model.md).
+  IntColumn get surah => integer().nullable().check(
+    surah.isNull() | surah.isBetweenValues(1, 114),
+  )();
+
+  /// The ayah's number, both or neither with [surah]. The cross-column rule lives here, on the column added second,
+  /// because SQLite refuses a CHECK that names a column that does not exist yet (research D1). 286 is the longest
+  /// surah; that the ayah exists in its surah is checked where rows are made and on import.
+  IntColumn get ayah => integer().nullable().check(
+    ayah.isNull().equalsExp(surah.isNull()) &
+        (ayah.isNull() | ayah.isBetweenValues(1, 286)),
+  )();
 }
 
 /// Key/value settings: activeWirdId, lastViewedPage, kahfEnabled, kahfDay (thursday or friday), kahfMinutes (only
@@ -77,16 +91,47 @@ class Settings extends Table {
 
 @DriftDatabase(tables: [Wirds, WirdDays, Bookmarks, Settings])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase(super.e);
+  /// [migrationDebugHook] is for tests only: it is called with 'surah' after the first step of the migration to schema 2
+  /// and with 'ayah' after the second, so a test can stop the migration halfway (like `BackupService.debugHook`).
+  AppDatabase(super.e, {this.migrationDebugHook});
 
   /// The on-device database used by the app.
-  AppDatabase.open() : super(driftDatabase(name: 'mushaf'));
+  AppDatabase.open()
+    : migrationDebugHook = null,
+      super(driftDatabase(name: 'mushaf'));
+
+  final Future<void> Function(String step)? migrationDebugHook;
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  /// The names of the columns [table] really has.
+  Future<Set<String>> _columnsOf(String table) async => {
+    for (final r in await customSelect('PRAGMA table_info($table)').get())
+      r.data['name'] as String,
+  };
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    // A new install gets schema 2 at once (the same DDL as the migration: test/migration).
+    onCreate: (m) => m.createAll(),
+    // 1 to 2 (feature 013, research D2): two nullable columns on bookmarks, in one transaction, each step guarded by the
+    // columns the table really has, so a run that was stopped halfway is finished by the next start and never fails with
+    // "duplicate column". No row is read, written or deleted; drift sets user_version only after this returns.
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await transaction(() async {
+          if (!(await _columnsOf('bookmarks')).contains('surah')) {
+            await m.addColumn(bookmarks, bookmarks.surah);
+          }
+          await migrationDebugHook?.call('surah');
+          if (!(await _columnsOf('bookmarks')).contains('ayah')) {
+            await m.addColumn(bookmarks, bookmarks.ayah);
+          }
+          await migrationDebugHook?.call('ayah');
+        });
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },

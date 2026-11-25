@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'ayah/ayah_repository.dart';
 import 'ayah/share_service.dart';
 import 'backup/backup.dart';
+import 'large_ayah/large_ayah_settings.dart';
 import 'look/look_settings.dart';
 import 'motion/look_fade.dart';
 import 'pdf/pdf_job.dart';
@@ -12,6 +13,7 @@ import 'mushaf/mushaf_repository.dart';
 import 'mushaf/reader_screen.dart';
 import 'reminders/reminder_scheduler.dart';
 import 'search/search_service.dart';
+import 'settings/ayah_tint_settings.dart';
 import 'settings/text_size_settings.dart';
 import 'theme.dart';
 import 'wirds/wird_repository.dart';
@@ -30,7 +32,9 @@ class MushafApp extends StatelessWidget {
     this.tempShareFiles,
     this.pdfJob,
     this.textSize,
+    this.ayahTint,
     this.appLook,
+    this.largeAyah,
     this.searchService,
     this.navigatorKey,
     this.home,
@@ -63,8 +67,15 @@ class MushafApp extends StatelessWidget {
   /// 100%.
   final TextSizeSettings? textSize;
 
+  /// The Settings switch of the tint behind bookmarked ayat (feature 013); null (tests that do not care) means on, and
+  /// Settings shows no switch.
+  final AyahTintSettings? ayahTint;
+
   /// The look the owner chose, Emerald & Gold or Night Reader; null (tests that do not care) means Emerald & Gold.
   final AppLookSettings? appLook;
+
+  /// The large-ayah view's settings (feature 015); none means the view is off.
+  final LargeAyahSettings? largeAyah;
 
   /// The search of surah names and ayat (feature 011): one per run, created at launch and reading nothing until the search is
   /// opened. Null (every test that does not need it) means the index shows no search icon.
@@ -92,7 +103,9 @@ class MushafApp extends StatelessWidget {
         Provider<TempShareFiles?>.value(value: tempShareFiles),
         ListenableProvider<PdfJob?>.value(value: pdfJob),
         ListenableProvider<TextSizeSettings?>.value(value: textSize),
+        ListenableProvider<AyahTintSettings?>.value(value: ayahTint),
         ListenableProvider<AppLookSettings?>.value(value: appLook),
+        ListenableProvider<LargeAyahSettings?>.value(value: largeAyah),
         // A ChangeNotifier, so the Listenable flavour (a plain Provider refuses one in debug); a screen only reads it. Only
         // when there is one: a screen reads null either way, and a service provided above the app is not hidden by a null.
         if (searchService != null)

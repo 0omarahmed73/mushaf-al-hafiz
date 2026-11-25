@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
+import '../ayah/ayah_ref.dart';
 import '../reminders/kahf_day.dart';
+import 'ayah_bookmark_change.dart';
 import 'db.dart';
 import 'portion.dart';
 import 'wird_palette.dart';
@@ -118,6 +120,11 @@ class WirdRepository {
   static const _kPermissionAsked = 'notificationPermissionAsked';
   static const _kTextSize = 'textSizePercent';
   static const _kAppLook = 'appLook';
+  static const _kAyahTint = 'ayahTint';
+  static const _kLargeAyah = 'largeAyah';
+  static const _kLargeAyahCount = 'largeAyahCount';
+  static const _kLargeAyahSize = 'largeAyahSize';
+  static const _kLargeAyahAt = 'largeAyahAt';
 
   // ------------------------------------------------------------------ settings
 
@@ -478,9 +485,10 @@ class WirdRepository {
   /// Every bookmark, read once (no stream): the reader controller works out its icon state from these rows.
   Future<List<Bookmark>> bookmarkRows() => _db.select(_db.bookmarks).get();
 
-  /// One tap on the reader's bookmark icon (feature 006): in one transaction, a page with no bookmark of the scope
+  /// One tap on the reader's bookmark icon (feature 006): in one transaction, a page with no PAGE bookmark of the scope
   /// [wirdId] (null = the general ones) gets one with no note; a page that has some loses all of them. Decided from
-  /// the database, never from what the screen believed. [ArgumentError] when [page] is not 1..604.
+  /// the database, never from what the screen believed. An ayah bookmark (feature 013) is never read, counted or
+  /// deleted here (spec FR-011). [ArgumentError] when [page] is not 1..604.
   Future<BookmarkToggle> toggleBookmark(int page, {int? wirdId}) async {
     _checkPage(page);
     return _db.transaction(() async {
@@ -488,6 +496,7 @@ class WirdRepository {
           await (_db.select(_db.bookmarks)..where(
                 (b) =>
                     b.page.equals(page) &
+                    b.surah.isNull() &
                     (wirdId == null
                         ? b.wirdId.isNull()
                         : b.wirdId.equals(wirdId)),
@@ -531,6 +540,166 @@ class WirdRepository {
       }
     },
   );
+
+  // ------------------------------------------------------------------ ayah bookmarks (feature 013)
+
+  /// The ayah bookmarks of [ref] in the scope [wirdId] (null = the general ones), not read in a transaction.
+  Future<List<Bookmark>> _ayahRows(AyahRef ref, int? wirdId) =>
+      (_db.select(_db.bookmarks)
+            ..where(
+              (b) =>
+                  b.surah.equals(ref.surah) &
+                  b.ayah.equals(ref.ayah) &
+                  (wirdId == null
+                      ? b.wirdId.isNull()
+                      : b.wirdId.equals(wirdId)),
+            )
+            ..orderBy([
+              (b) => OrderingTerm.desc(b.createdAt),
+              (b) => OrderingTerm.desc(b.id),
+            ]))
+          .get();
+
+  /// The ayah bookmarks of [ref] in the scope [wirdId] (null = the general ones), newest first: whether the ayah sheet
+  /// says «remove» and what note it shows.
+  Future<List<Bookmark>> ayahBookmarkRows(AyahRef ref, {int? wirdId}) =>
+      _ayahRows(ref, wirdId);
+
+  Future<int> _insertAyah(AyahRef ref, int page, int? wirdId, String? note) =>
+      _db
+          .into(_db.bookmarks)
+          .insert(
+            BookmarksCompanion.insert(
+              page: page,
+              wirdId: Value(wirdId),
+              note: Value(note),
+              surah: Value(ref.surah),
+              ayah: Value(ref.ayah),
+            ),
+          );
+
+  Future<void> _deleteIds(Iterable<int> ids) =>
+      (_db.delete(_db.bookmarks)..where((b) => b.id.isIn(ids))).go();
+
+  /// One tap on the ayah sheet's bookmark row (feature 013): in one transaction, an ayah with no bookmark of the scope
+  /// [wirdId] gets one with no note on [page] (the page where the ayah begins, which the caller takes from the fixed
+  /// edition); an ayah that has some loses all of them, notes included. Never touches a page bookmark or another
+  /// scope's. Decided from the database. [ArgumentError] when [page] is not 1..604.
+  Future<AyahBookmarkChange> toggleAyahBookmark(
+    AyahRef ref, {
+    required int page,
+    int? wirdId,
+  }) async {
+    _checkPage(page);
+    return _db.transaction(() async {
+      final rows = await _ayahRows(ref, wirdId);
+      if (rows.isEmpty) {
+        final id = await _insertAyah(ref, page, wirdId, null);
+        return AyahBookmarkChange(
+          kind: AyahChangeKind.added,
+          ref: ref,
+          page: page,
+          addedId: id,
+        );
+      }
+      await _deleteIds([for (final r in rows) r.id]);
+      return AyahBookmarkChange(
+        kind: AyahChangeKind.removed,
+        ref: ref,
+        page: page,
+        removed: rows,
+      );
+    });
+  }
+
+  /// One save of the note field «ملاحظة للآية» (spec FR-021, data-model.md "the four saves"), in one transaction and
+  /// decided from the database. [note] is trimmed; spaces only is empty. No bookmark and a note: one is created with it
+  /// (createdWithNote). Bookmarks and a note: the note of every row of the scope is replaced, nothing else changes
+  /// (noteReplaced). Bookmarks and no note: their notes are cleared, the bookmarks stay (noteCleared). No bookmark and no
+  /// note: nothing is written and the answer is null. [ArgumentError] when [page] is not 1..604.
+  Future<AyahBookmarkChange?> saveAyahNote(
+    AyahRef ref, {
+    required int page,
+    int? wirdId,
+    String? note,
+  }) async {
+    _checkPage(page);
+    final text = note?.trim() ?? '';
+    final value = text.isEmpty ? null : text;
+    return _db.transaction(() async {
+      final rows = await _ayahRows(ref, wirdId);
+      if (rows.isEmpty) {
+        if (value == null) return null;
+        final id = await _insertAyah(ref, page, wirdId, value);
+        return AyahBookmarkChange(
+          kind: AyahChangeKind.createdWithNote,
+          ref: ref,
+          page: page,
+          addedId: id,
+        );
+      }
+      await (_db.update(_db.bookmarks)
+            ..where((b) => b.id.isIn([for (final r in rows) r.id])))
+          .write(BookmarksCompanion(note: Value(value)));
+      return AyahBookmarkChange(
+        kind: value == null
+            ? AyahChangeKind.noteCleared
+            : AyahChangeKind.noteReplaced,
+        ref: ref,
+        page: page,
+        before: [for (final r in rows) (id: r.id, note: r.note)],
+      );
+    });
+  }
+
+  /// «تراجع» after [change]: exactly the state before it. The row it added is deleted; the rows it removed come back with
+  /// their id, time, note, surah and ayah (one whose wird no longer exists comes back general, as feature 006); the notes
+  /// it rewrote are written back by id. Running it twice changes nothing more.
+  Future<void> undoAyahBookmarkChange(AyahBookmarkChange change) =>
+      _db.transaction(() async {
+        switch (change.kind) {
+          case AyahChangeKind.added:
+          case AyahChangeKind.createdWithNote:
+            final id = change.addedId;
+            if (id != null) await removeBookmark(id);
+          case AyahChangeKind.removed:
+            final wirdIds = {
+              for (final w in await _db.select(_db.wirds).get()) w.id,
+            };
+            for (final r in change.removed) {
+              await _db
+                  .into(_db.bookmarks)
+                  .insert(
+                    BookmarksCompanion.insert(
+                      id: Value(r.id),
+                      page: r.page,
+                      wirdId: Value(
+                        wirdIds.contains(r.wirdId) ? r.wirdId : null,
+                      ),
+                      note: Value(r.note),
+                      createdAt: Value(r.createdAt),
+                      surah: Value(r.surah),
+                      ayah: Value(r.ayah),
+                    ),
+                    mode: InsertMode.insertOrIgnore,
+                  );
+            }
+          case AyahChangeKind.noteReplaced:
+          case AyahChangeKind.noteCleared:
+            for (final b in change.before) {
+              await (_db.update(_db.bookmarks)..where((x) => x.id.equals(b.id)))
+                  .write(BookmarksCompanion(note: Value(b.note)));
+            }
+        }
+      });
+
+  /// The ayat that have an ayah bookmark in the scope [scopeWirdId] (null = the general ones), from rows already read:
+  /// what the reader tints and what the sheet's state is worked out from. Pure.
+  Set<AyahRef> ayahMarksOf(Iterable<Bookmark> rows, int? scopeWirdId) => {
+    for (final b in rows)
+      if (b.surah != null && b.ayah != null && b.wirdId == scopeWirdId)
+        AyahRef(b.surah!, b.ayah!),
+  };
 
   /// Every bookmark, newest first, each with its wird's name (null when general).
   Stream<List<BookmarkEntry>> watchBookmarks() {
@@ -590,6 +759,28 @@ class WirdRepository {
   Future<String?> appLookRaw() => _getSetting(_kAppLook);
 
   Future<void> setAppLook(String value) => _setSetting(_kAppLook, value);
+
+  /// The stored tint switch of feature 013 exactly as written (`true` or `false`), or null if it was never changed.
+  Future<String?> ayahTintRaw() => _getSetting(_kAyahTint);
+
+  Future<void> setAyahTint(bool enabled) => _setSetting(_kAyahTint, '$enabled');
+
+  /// The large-ayah view's four settings exactly as written, or null when never written (feature 015, data-model.md).
+  Future<String?> largeAyahRaw() => _getSetting(_kLargeAyah);
+
+  Future<void> setLargeAyah(bool on) => _setSetting(_kLargeAyah, '$on');
+
+  Future<String?> largeAyahCountRaw() => _getSetting(_kLargeAyahCount);
+
+  Future<void> setLargeAyahCount(int count) => _setSetting(_kLargeAyahCount, '$count');
+
+  Future<String?> largeAyahSizeRaw() => _getSetting(_kLargeAyahSize);
+
+  Future<void> setLargeAyahSize(int step) => _setSetting(_kLargeAyahSize, '$step');
+
+  Future<String?> largeAyahAtRaw() => _getSetting(_kLargeAyahAt);
+
+  Future<void> setLargeAyahAt(String key) => _setSetting(_kLargeAyahAt, key);
 
   Future<bool> kahfEnabled() async =>
       (await _getSetting(_kKahfEnabled) ?? 'true') == 'true';
