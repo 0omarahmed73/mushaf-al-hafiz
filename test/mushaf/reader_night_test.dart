@@ -228,7 +228,7 @@ void main() {
         await pumpLookReader(t, choice: choice);
         final bar = barBox(t, look).rect;
         for (final icon in [
-          Icons.headphones,
+          Icons.mosque_outlined, // feature 014: was Icons.headphones («استماع»)
           Icons.bookmark_border,
           Icons.menu_book,
           Icons.quiz_outlined,
@@ -237,7 +237,8 @@ void main() {
           final at = t.getCenter(find.byIcon(icon));
           expect(bar.contains(at), isTrue, reason: '$icon is inside the bar');
         }
-        for (final label in ['استماع', 'علامات', 'أوراد', 'اختبار']) {
+        // Feature 014: «مواقيت» replaced the «استماع» placeholder.
+        for (final label in ['مواقيت', 'علامات', 'أوراد', 'اختبار']) {
           expect(
             t.widget<Text>(find.text(label)).style?.color,
             look.heading,
@@ -249,16 +250,15 @@ void main() {
           look.heading,
         );
         expect(t.widget<IconButton>(key('open-settings')).color, look.heading);
-        expect(find.text('قريباً'), findsNWidgets(2));
-        for (final soon in ['استماع', 'اختبار']) {
+        expect(find.text('قريباً'), findsNWidgets(1));
+        for (final soon in ['اختبار']) {
           final fade = find.ancestor(
             of: find.text(soon),
             matching: find.byType(Opacity),
           );
           expect(t.widget<Opacity>(fade.first).opacity, 0.5, reason: soon);
         }
-        // «استماع» and «اختبار» do nothing; «علامات» opens the bookmarks.
-        await t.tap(find.text('استماع'));
+        // «اختبار» does nothing; «علامات» opens the bookmarks.
         await t.tap(find.text('اختبار'));
         await t.pump();
         expect(find.byType(BookmarksSheet), findsNothing);
@@ -385,7 +385,7 @@ void main() {
     ) async {
       await pumpLookReader(t, choice: LookChoice.night);
       final pill = barBox(t, AppLook.night).rect;
-      for (final label in ['استماع', 'علامات', 'أوراد', 'اختبار']) {
+      for (final label in ['مواقيت', 'علامات', 'أوراد', 'اختبار']) {
         final item = t.getRect(
           find
               .ancestor(of: find.text(label), matching: find.byType(InkWell))

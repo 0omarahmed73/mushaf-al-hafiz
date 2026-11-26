@@ -94,3 +94,6 @@ Privacy policy pushed to the public repository on 2026-11-25 (commit 8318dea) af
   screen edge on phones with a larger system font (two testers, one a Samsung A52). Bundle:
   ~/mushaf-play/mushaf-hafiz-1.0.1.aab. The same two testers saw stutter while turning pages; the owner's phone
   does not. Not measured on their phones; ask them after the update.
+- 2026-11-26: version 1.0.2 (versionCode 3) built after feature 015 (large-ayah mode) was finished. It also has the page font
+  fix of 1.0.1, which was never uploaded and is replaced by this one. Bundle: ~/mushaf-play/mushaf-hafiz-1.0.2.aab
+  (178.6 MB). The owner uploads it to the closed test.

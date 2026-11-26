@@ -39,4 +39,18 @@ class FakeReminderService implements ReminderService {
     }
     schedules.add(List.of(plan));
   }
+
+  // Feature 014: exact alarms and the test notification.
+  bool exact = true;
+  int exactSettingsOpened = 0;
+  final List<(String, String)> tests = [];
+
+  @override
+  Future<bool> exactAllowed() async => exact;
+
+  @override
+  Future<void> openExactSettings() async => exactSettingsOpened++;
+
+  @override
+  Future<void> showTest(String title, String body) async => tests.add((title, body));
 }

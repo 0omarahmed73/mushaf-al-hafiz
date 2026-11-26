@@ -175,8 +175,8 @@ class _Middle extends StatelessWidget {
   final SplashFrame frame;
 
   static const TextStyle _name = TextStyle(
-    fontFamily: 'ReemKufi',
-    fontVariations: [FontVariation('wght', 700)],
+    fontFamily: 'Cairo',
+    fontWeight: FontWeight.w700,
     fontSize: 44,
     color: SplashColors.name,
     decoration: TextDecoration.none,

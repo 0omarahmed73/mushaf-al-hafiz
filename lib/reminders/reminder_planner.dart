@@ -13,6 +13,12 @@ const int kKahfIdBase = 900000;
 const String kKahfTitle = 'سورة الكهف';
 const String kKahfBody = 'ليلة الجمعة: لا تنسَ قراءة سورة الكهف';
 
+/// Prayer notification ids start here (feature 014, data-model.md): `kPrayerIdBase + dayIndex * 10 + slot`.
+const int kPrayerIdBase = 1000000;
+
+/// What a notification is; it picks the notification channel (feature 014, research D6, D8).
+enum ReminderKind { wird, kahf, prayerSound, prayerSilent, prayerBefore }
+
 /// One notification to schedule, in the phone's local time.
 class PlannedReminder {
   const PlannedReminder({
@@ -21,6 +27,8 @@ class PlannedReminder {
     required this.title,
     required this.body,
     required this.payload,
+    this._kind,
+    this.exact = false,
   });
 
   final int id;
@@ -28,10 +36,18 @@ class PlannedReminder {
   final String title;
   final String body;
 
-  /// `wird:<id>` or `page:<n>`; what a tap opens (see `ReaderController.openPayload`).
+  /// `wird:<id>`, `page:<n>` or `prayer`; what a tap opens (see `ReaderController.openPayload`).
   final String payload;
 
-  bool get isKahf => id >= kKahfIdBase;
+  final ReminderKind? _kind;
+
+  /// Scheduled as an exact alarm (prayer items, when the reader allowed exact alarms; research D7).
+  final bool exact;
+
+  /// The kind given, or for an item built before feature 014: Kahf by its id, else a wird reminder.
+  ReminderKind get kind => _kind ?? (id >= kKahfIdBase ? ReminderKind.kahf : ReminderKind.wird);
+
+  bool get isKahf => kind == ReminderKind.kahf;
 
   @override
   bool operator ==(Object other) =>
@@ -40,13 +56,15 @@ class PlannedReminder {
       other.at == at &&
       other.title == title &&
       other.body == body &&
-      other.payload == payload;
+      other.payload == payload &&
+      other.kind == kind &&
+      other.exact == exact;
 
   @override
-  int get hashCode => Object.hash(id, at, title, body, payload);
+  int get hashCode => Object.hash(id, at, title, body, payload, kind, exact);
 
   @override
-  String toString() => 'PlannedReminder($id, $at, $title, $body, $payload)';
+  String toString() => 'PlannedReminder($id, $at, $title, $body, $payload, ${kind.name}${exact ? ', exact' : ''})';
 }
 
 /// The notifications to have scheduled for the next [horizonDays] days, earliest first.

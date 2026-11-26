@@ -1,0 +1,13 @@
+{
+  "source": "Times of the Egyptian General Authority of Survey as quoted by Sada El-Balad (elbalad.news), read 2026-11-26: https://www.elbalad.news/6830754 (Sunday 11 January 2026) and https://www.elbalad.news/6845791 (Saturday 24 January 2026). Dostor's pages were refused (HTTP 403). Aswan is left out: its Dhuhr reads 11:56 ص and 12:00 ص on those pages, and the block looks copied between days. Local time, Africa/Cairo (UTC+2 in January).",
+  "cities": {
+    "Cairo": {"lat": 30.063, "lon": 31.25, "times": {
+      "2026-01-11": ["05:20", "06:52", "12:03", "14:55", "17:14", "18:36"],
+      "2026-01-24": ["05:19", "06:49", "12:07", "15:05", "17:25", "18:45"]
+    }},
+    "Alexandria": {"lat": 31.2, "lon": 29.92, "times": {
+      "2026-01-11": ["05:27", "07:00", "12:08", "14:57", "17:17", "18:40"],
+      "2026-01-24": ["05:25", "06:57", "12:12", "15:08", "17:28", "18:50"]
+    }}
+  }
+}

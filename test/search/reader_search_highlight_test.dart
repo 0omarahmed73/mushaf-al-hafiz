@@ -120,7 +120,7 @@ void main() {
 
     testWidgets('a pointer-down on the bottom bar', (t) async {
       await _found(t);
-      await t.tap(find.text('استماع')); // disabled: it does nothing itself
+      await t.tap(find.text('اختبار')); // disabled: it does nothing itself (feature 014 replaced «استماع»)
       await t.pump(const Duration(milliseconds: 100));
       expect(highlightedBoxes(t), 0);
     });

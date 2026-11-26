@@ -110,7 +110,8 @@ void main() {
   );
 
   test('the fonts are the ones the app already bundles', () {
-    expect(kHeadingFont, 'ReemKufi');
+    // The headings moved to Cairo on 2026-11-26 (the owner); Reem Kufi stays for the surah title in the Mushaf.
+    expect(kHeadingFont, 'Cairo');
     expect(kUiFont, 'Cairo');
   });
 

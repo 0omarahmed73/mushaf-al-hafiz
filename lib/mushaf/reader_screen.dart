@@ -28,6 +28,8 @@ import '../motion/motion.dart';
 import '../pdf/pdf_job.dart';
 import '../reminders/reminder_scheduler.dart';
 import '../search/ayah_target.dart';
+import '../prayer/prayer_screen.dart';
+import '../prayer/prayer_strings.dart' show kPrayerBarLabel, kPrayerTitle;
 import '../settings/ayah_tint_settings.dart';
 import '../settings/settings_screen.dart';
 import '../wirds/ayah_bookmark_change.dart';
@@ -129,7 +131,14 @@ class _ReaderScreenState extends State<ReaderScreen>
     await _controller.init();
     // A notification that started the app decides where the reader opens.
     final launchedBy = _reminders?.taps.takePending();
-    if (launchedBy != null) await _controller.openPayload(launchedBy);
+    // Feature 014 (FR-022): a prayer notification opens the prayer screen over the reader.
+    if (launchedBy == 'prayer') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openPrayer());
+      });
+    } else if (launchedBy != null) {
+      await _controller.openPayload(launchedBy);
+    }
     final panelOpen = await _repo.todayPanelExpanded();
     if (!mounted) return;
     _panelOpen = panelOpen;
@@ -201,6 +210,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _onNotificationTap(String payload) async {
     _reminders?.taps.takePending();
     Navigator.of(context).popUntil((route) => route.isFirst);
+    if (payload == 'prayer') {
+      await _openPrayer();
+      return;
+    }
     await _controller.openPayload(payload);
   }
 
@@ -316,6 +329,10 @@ class _ReaderScreenState extends State<ReaderScreen>
       case final AyahTarget target:
         await _showFoundAyah(target);
     }
+  }
+
+  Future<void> _openPrayer() async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const PrayerScreen()));
   }
 
   Future<void> _openSettings() async {
@@ -749,6 +766,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   PageReveal? _pagerReveal;
 
   late final Widget _bottomBar = _BottomBar(
+    onPrayer: _openPrayer,
     onWirds: _openWirds,
     onBookmarks: _openBookmarks,
     onSettings: _openSettings,
@@ -1344,11 +1362,13 @@ class _TopBar extends StatelessWidget {
 
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
+    required this.onPrayer,
     required this.onWirds,
     required this.onBookmarks,
     required this.onSettings,
   }) : super(key: const ValueKey('bottom-bar'));
 
+  final VoidCallback onPrayer;
   final VoidCallback onWirds;
   final VoidCallback onBookmarks;
   final VoidCallback onSettings;
@@ -1356,25 +1376,53 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final look = context.look;
-    final items = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        const _BarItem(icon: Icons.headphones, label: 'استماع', soon: true),
-        _BarItem(
-          icon: Icons.bookmark_border,
-          label: 'علامات',
-          onTap: onBookmarks,
-        ),
-        _BarItem(icon: Icons.menu_book, label: 'أوراد', onTap: onWirds),
-        const _BarItem(icon: Icons.quiz_outlined, label: 'اختبار', soon: true),
-        IconButton(
-          key: const ValueKey('open-settings'),
-          icon: const Icon(Icons.menu),
-          color: look.heading,
-          tooltip: 'القائمة',
-          onPressed: onSettings,
-        ),
-      ],
+    // A large system font must not break the bar (A52 and S26 Ultra testers, 2026-11-26): its text keeps the 1x size,
+    // since the 68 px slot cannot grow without moving the page, and each item may take at most an equal share of the
+    // width, its label shrinking to fit when the screen is narrow. Where everything fits (412 dp at 1x) nothing moves.
+    final items = MediaQuery.withNoTextScaling(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          // Feature 014 (FR-002): prayer times take the place of the «استماع / قريباً» placeholder.
+          Flexible(
+            child: _BarItem(
+              key: const ValueKey('bar-prayer'),
+              icon: Icons.mosque_outlined,
+              label: kPrayerBarLabel,
+              tooltip: kPrayerTitle,
+              onTap: onPrayer,
+            ),
+          ),
+          Flexible(
+            child: _BarItem(
+              icon: Icons.bookmark_border,
+              label: 'علامات',
+              onTap: onBookmarks,
+            ),
+          ),
+          Flexible(
+            child: _BarItem(
+              icon: Icons.menu_book,
+              label: 'أوراد',
+              onTap: onWirds,
+            ),
+          ),
+          const Flexible(
+            child: _BarItem(
+              icon: Icons.quiz_outlined,
+              label: 'اختبار',
+              soon: true,
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('open-settings'),
+            icon: const Icon(Icons.menu),
+            color: look.heading,
+            tooltip: 'القائمة',
+            onPressed: onSettings,
+          ),
+        ],
+      ),
     );
     if (!look.floatingBar) {
       return DecoratedBox(
@@ -1403,10 +1451,12 @@ class _BottomBar extends StatelessWidget {
 
 class _BarItem extends StatelessWidget {
   const _BarItem({
+    super.key,
     required this.icon,
     required this.label,
     this.soon = false,
     this.onTap,
+    this.tooltip,
   });
 
   final IconData icon;
@@ -1415,6 +1465,9 @@ class _BarItem extends StatelessWidget {
   /// Disabled and labelled «قريباً» until its feature exists.
   final bool soon;
   final VoidCallback? onTap;
+
+  /// A longer name for the long press and the screen reader (feature 014: «مواقيت الصلاة»).
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -1431,32 +1484,46 @@ class _BarItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: look.heading),
-        Text(label, style: style),
+        // Shrinks only when the item is given less width than the label needs (a narrow screen).
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, style: style),
+        ),
         if (soon)
-          Text(
-            'قريباً',
-            style: TextStyle(
-              fontSize: 9,
-              color: look.heading,
-              height: pill ? 1.1 : null,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'قريباً',
+              style: TextStyle(
+                fontSize: 9,
+                color: look.heading,
+                height: pill ? 1.1 : null,
+              ),
             ),
           ),
       ],
     );
-    return Opacity(
+    final item = Opacity(
       opacity: soon ? 0.5 : 1,
       child: InkWell(
         onTap: soon ? null : onTap,
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 8, vertical: pill ? 2 : 4),
+          // Emerald's column is 40 px at a 1x font, 48 with its padding; the floor keeps it a 48 px target when a
+          // narrow screen shrinks the label.
           child: pill
               ? ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 48),
                   child: Center(widthFactor: 1, child: column),
                 )
-              : column,
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  child: Center(widthFactor: 1, heightFactor: 1, child: column),
+                ),
         ),
       ),
     );
+    final tip = tooltip;
+    return tip == null ? item : Tooltip(message: tip, child: item);
   }
 }

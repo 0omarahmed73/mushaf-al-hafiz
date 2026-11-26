@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../mushaf/models.dart';
+import '../prayer/prayer_settings.dart';
 import '../wirds/db.dart';
 import '../wirds/portion.dart';
 
@@ -46,8 +47,9 @@ String backupFileName(DateTime localNow) =>
 /// Settings that describe this phone rather than the user's data. A backup replaces every setting, but when the file has
 /// no value for one of these keys the phone's own value is kept: importing a file written before the key existed must not
 /// make the phone forget it (feature 008: `tipsSeen`, so the first-run tips do not show again after a restore). A value the
-/// file does carry wins.
-const Set<String> kKeptOnImport = {'tipsSeen'};
+/// file does carry wins. Feature 014 adds the `prayer.*` keys: a file from before prayer times keeps the reader's prayer
+/// settings (research D10).
+const Set<String> kKeptOnImport = {'tipsSeen', ...kPrayerKeys};
 
 /// Exports every user table and setting as one JSON document and restores such a document, replacing
 /// everything in one transaction (spec FR-039, FR-040).

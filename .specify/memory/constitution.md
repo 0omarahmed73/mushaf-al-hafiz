@@ -1,5 +1,25 @@
 <!--
 Sync Impact Report
+- Version change: 2.2.0 → 3.0.0 (MAJOR: a MUST NOT of Principle III is removed: the app may now ask for the approximate
+  location permission for prayer times)
+- Modified principles: III. In the prayer-times exception (2.0.0), the bullet "the city MUST be chosen from a list bundled
+  in the app; the app MUST NOT ask for the location permission" is replaced by "Place (3.0.0)": the approximate location
+  only, asked only on the reader's tap, never in the background, kept on the phone, used only for prayer times, with the
+  bundled city list as the fallback; the permissions bullet names the approximate location. The network stays forbidden.
+- Unchanged principles: I, II, IV (nothing leaves the phone), V, VI, VII, VIII and IX.
+- Modified sections: Scope and Distribution (v1): new bullet "In scope by amendment (3.0.0)".
+- Added sections: none
+- Removed sections: none
+- Reason: on 2026-11-26, in the clarify step of feature 014 (specs/014-prayer-times/spec.md), the owner asked «ليه
+  منشغلهاش ب GPS عادي ونجيب المواقيت من النت ؟». After being told the times need no network and that the location needs
+  this amendment, he chose "GPS, no internet", approved this wording («موافق»), and chose a city list for readers who refuse
+  the permission.
+- Templates: .specify/templates/*.md not modified (they read this file at runtime).
+- Follow-up TODOs: PRIVACY.md (public) must name the approximate location before feature 014 ships, pushed only after the
+  owner's «ارفع»; Play's Data safety answer stays "no data collected" (processed on the phone only) and is checked again at
+  release.
+
+Previous report (2.2.0):
 - Version change: 2.1.0 → 2.2.0 (MINOR: materially expanded guidance in Principles I and II and in Scope and
   Distribution)
 - Modified principles: I. Quran Text Integrity gains one bullet, "Large-ayah view (2.2.0)": a separate view MAY show 1 to
@@ -208,9 +228,12 @@ viewer attached) and was abandoned for that reason.
   - The Mushaf stays the first screen (Principle II). Prayer times MUST be a separate screen, and the
     feature MUST stay off until the reader turns it on.
   - Every time MUST be calculated on the phone with no network use (Principle IV).
-  - The city MUST be chosen from a list bundled in the app; the app MUST NOT ask for the location
-    permission.
-  - The only new permission MAY be the exact-alarm permission. If the reader refuses it, the notifications
+  - Place (3.0.0): the place MAY come from the phone's location, under these rules: only the approximate
+    (coarse) location permission, never the precise one; asked only when the reader taps the button that finds
+    the place, never at start and never in the background; the coordinates are kept on the phone only, are never
+    sent anywhere, and are used for nothing but prayer times. If the reader refuses or the phone cannot find the
+    place, the city MUST be choosable from a list bundled in the app. No network is used either way.
+  - The only new permissions MAY be the approximate location permission (above) and the exact-alarm permission. If the reader refuses it, the notifications
     MUST still work in inexact mode and the app MUST say that they may be a few minutes late.
   - The calculation library, the city list and the sound MUST each be recorded with its licence in
     `docs/research/licenses.md` and credited in About (Principle V).
@@ -354,6 +377,7 @@ real device.
 - In scope by amendment (2.0.0): prayer times and their notifications with a short sound, under the rules
   of Principle III. The full adhan recording, qibla, a prayer log, a qada counter and home-screen widgets
   stay out of scope.
+- In scope by amendment (3.0.0): the approximate location, for prayer times only, under the place rule of Principle III.
 - In scope by amendment (2.2.0): the large-ayah view (1 to 3 ayat per screen at a large size, long ayat split over
   screens), under the rules of Principles I and II. It is a separate view, never a replacement for the Mushaf page.
 - Out of scope for now: voice recitation with automatic mistake detection, teacher/halaqa mode,
@@ -384,4 +408,4 @@ real device.
 - Compliance review: `/speckit-analyze` and `/speckit-converge` MUST treat a violated MUST in this
   document as the highest-severity finding.
 
-**Version**: 2.2.0 | **Ratified**: 2026-11-20 | **Last Amended**: 2026-11-25
+**Version**: 3.0.0 | **Ratified**: 2026-11-20 | **Last Amended**: 2026-11-26

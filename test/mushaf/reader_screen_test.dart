@@ -155,15 +155,16 @@ void main() {
     expect(find.text('اجعلها موضعي'), findsNothing);
   });
 
-  testWidgets('the bottom bar lists its five actions; listen and test are disabled with «قريباً»', (t) async {
+  // Feature 014 (FR-002): «مواقيت» took the place of the «استماع» placeholder; only «اختبار» is still «قريباً».
+  testWidgets('the bottom bar lists its five actions; test is disabled with «قريباً»', (t) async {
     await pumpReader(t, startPage: 50);
-    for (final label in ['استماع', 'علامات', 'أوراد', 'اختبار']) {
+    for (final label in ['مواقيت', 'علامات', 'أوراد', 'اختبار']) {
       expect(find.descendant(of: find.byKey(const ValueKey('bottom-bar')), matching: find.text(label)),
           findsOneWidget, reason: label);
     }
     expect(find.byKey(const ValueKey('open-settings')), findsOneWidget);
-    expect(find.text('قريباً'), findsNWidgets(2));
-    await t.tap(find.text('استماع'));
+    expect(find.text('قريباً'), findsNWidgets(1));
+    await t.tap(find.text('اختبار'));
     await t.pump();
     expect(find.byKey(const ValueKey('page-number')), findsOneWidget); // nothing opened
   });

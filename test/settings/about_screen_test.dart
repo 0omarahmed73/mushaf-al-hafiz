@@ -78,6 +78,12 @@ void main() {
         const Offset(0, -200),
       );
       expect(find.textContaining('شخصي', skipOffstage: false), findsNothing);
+      // Feature 014 added a block below this line, so the credit above may be out of the list's cache: scroll up to it.
+      await t.dragUntilVisible(
+        find.textContaining('تُستعمل في تطبيق مجاني غير تجاري، مع ذكر مصدرها هنا'),
+        find.byType(ListView),
+        const Offset(0, 200),
+      );
       expect(
         find.textContaining(
           'تُستعمل في تطبيق مجاني غير تجاري، مع ذكر مصدرها هنا',

@@ -62,12 +62,30 @@ void main() {
 
   File folderFile(String name) => File('${dir.path}/share/$name');
 
-  /// Lets the job run until it is no longer preparing.
-  Future<void> untilSettled() async {
-    for (var i = 0; i < 2000 && job.state is PdfPreparing; i++) {
-      await Future<void>.delayed(Duration.zero);
+  /// Lets the job run until [done] holds, checked now and after each state the job announces (the job
+  /// announces after every page and at the end). The job writes a real file, so this waits on the job itself
+  /// with a generous real-time limit, never a fixed count of event-loop turns, which a busy machine outruns.
+  /// On the limit it returns, and the test's own expectations report what was missing.
+  Future<void> until(
+    bool Function() done, {
+    Duration limit = const Duration(seconds: 20),
+  }) async {
+    if (done()) return;
+    final reached = Completer<void>();
+    void check() {
+      if (!reached.isCompleted && done()) reached.complete();
+    }
+
+    job.addListener(check);
+    try {
+      await reached.future.timeout(limit, onTimeout: () {});
+    } finally {
+      job.removeListener(check);
     }
   }
+
+  /// Lets the job run until it is no longer preparing.
+  Future<void> untilSettled() => until(() => job.state is! PdfPreparing);
 
   setUp(() {
     dir = Directory.systemTemp.createTempSync('pdf_job_test');
@@ -153,9 +171,7 @@ void main() {
 
   test('cancel stops within one step, leaves no file and ends idle', () async {
     job.start(2);
-    for (var i = 0; i < 200 && renderer.pdfPages.length < 5; i++) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await until(() => renderer.pdfPages.length >= 5);
     expect(renderer.pdfPages.length, greaterThanOrEqualTo(5));
     await job.cancel();
     final drawn = renderer.pdfPages.length;
@@ -292,9 +308,7 @@ void main() {
     () async {
       final gate = Completer<void>();
       job.start(2);
-      for (var i = 0; i < 20 && renderer.pdfPages.length < 3; i++) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      await until(() => renderer.pdfPages.length >= 3);
       renderer.gate = gate.future; // the app goes to the background: no frames
       await Future<void>.delayed(const Duration(milliseconds: 20));
       final stuckAt = (job.state as PdfPreparing).done;

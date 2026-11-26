@@ -122,9 +122,17 @@ class AboutScreen extends StatelessWidget {
       'تُستعمل في تطبيق مجاني غير تجاري، مع ذكر مصدرها هنا',
     ),
     ('Amiri Quran', 'خط البسملة', 'رخصة الخطوط المفتوحة SIL OFL'),
-    ('Reem Kufi', 'خط العناوين', 'رخصة الخطوط المفتوحة SIL OFL'),
-    ('Cairo', 'خط الواجهة', 'رخصة الخطوط المفتوحة SIL OFL'),
+    ('Reem Kufi', 'خط عناوين السور', 'رخصة الخطوط المفتوحة SIL OFL'),
+    ('Cairo', 'خط الواجهة والعناوين', 'رخصة الخطوط المفتوحة SIL OFL'),
     (kDuaCreditName, kDuaCreditUse, kDuaCreditNote),
+  ];
+
+  /// Feature 014 (FR-026): the prayer-times sources, in their own block at the end of the screen. The takbir's source
+  /// is added when its recording is bundled (T032).
+  static const List<(String, String, String)> prayerCredits = [
+    ('adhan_dart', 'حساب مواقيت الصلاة على الهاتف', 'رخصة MIT'),
+    ('GeoNames', 'قائمة المدن لمواقيت الصلاة', 'رخصة CC BY 4.0 · geonames.org'),
+    ('محمد الدمرداش', 'تكبيرة تنبيه الصلاة (من أذانه)', 'assabile.com'),
   ];
 
   Future<void> _open(BuildContext context, String url) async {
@@ -208,6 +216,20 @@ class AboutScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 22),
+            Text(
+              'مصادر مواقيت الصلاة',
+              key: const ValueKey('prayer-credits'),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: look.textSecondary,
+              ),
+            ),
+            for (var i = 0; i < prayerCredits.length; i++) ...[
+              if (i > 0) const _Hairline(),
+              _Credit(prayerCredits[i]),
+            ],
           ],
         ),
       ),

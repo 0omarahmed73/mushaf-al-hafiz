@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf/prayer/prayer_settings.dart' show kPrayerKeys;
 import 'package:mushaf/backup/backup_service.dart';
 import 'package:mushaf/onboarding/tips_store.dart';
 import 'package:mushaf/wirds/db.dart';
@@ -65,10 +66,11 @@ void main() {
   }
 
   test(
-    'the set of settings that stay with the phone is exactly the tips flag',
+    // Feature 014 (research D10) adds the prayer keys: a backup from before prayer times keeps them.
+    'the set of settings that stay with the phone is the tips flag and the prayer keys',
     () {
-      expect(kKeptOnImport, {kTipsSeenKey});
-      expect(kKeptOnImport, {'tipsSeen'});
+      expect(kKeptOnImport, {kTipsSeenKey, ...kPrayerKeys});
+      expect(kKeptOnImport, {'tipsSeen', ...kPrayerKeys});
     },
   );
 

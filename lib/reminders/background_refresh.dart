@@ -18,7 +18,8 @@ void reminderCallbackDispatcher() {
     try {
       final service = LocalNotificationService();
       await service.init();
-      final plan = await buildReminderPlan(WirdRepository(db), DateTime.now());
+      // Feature 014: the prayer notifications are part of the plan, exact when the phone allows it.
+      final plan = await buildReminderPlan(WirdRepository(db), DateTime.now(), exact: await service.exactAllowed());
       await service.reschedule(plan);
       return true;
     } catch (e, s) {

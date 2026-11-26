@@ -6,6 +6,7 @@ import 'ayah_bookmark_change.dart';
 import 'db.dart';
 import 'portion.dart';
 import 'wird_palette.dart';
+import '../prayer/prayer_settings.dart';
 
 export 'db.dart' show Bookmark, Wird, WirdDay, WirdType;
 
@@ -781,6 +782,31 @@ class WirdRepository {
   Future<String?> largeAyahAtRaw() => _getSetting(_kLargeAyahAt);
 
   Future<void> setLargeAyahAt(String key) => _setSetting(_kLargeAyahAt, key);
+
+  /// The stored `prayer.*` keys and their values (feature 014; `PrayerSettings.read` parses them).
+  Future<Map<String, String>> prayerEntries() async {
+    final rows = await (_db.select(_db.settings)..where((s) => s.key.like('prayer.%'))).get();
+    return {for (final r in rows) r.key: r.value};
+  }
+
+  /// The `prayer.*` keys, again after every change of them.
+  Stream<Map<String, String>> watchPrayerEntries() =>
+      (_db.select(_db.settings)..where((s) => s.key.like('prayer.%'))).watch().map(
+        (rows) => {for (final r in rows) r.key: r.value},
+      );
+
+  /// Writes every `prayer.*` key of [s] in one transaction; a key [s] does not have (no place) is removed.
+  Future<void> setPrayerSettings(PrayerSettings s) => _db.transaction(() async {
+    final entries = s.toEntries();
+    for (final key in kPrayerKeys) {
+      final value = entries[key];
+      if (value == null) {
+        await _removeSetting(key);
+      } else {
+        await _setSetting(key, value);
+      }
+    }
+  });
 
   Future<bool> kahfEnabled() async =>
       (await _getSetting(_kKahfEnabled) ?? 'true') == 'true';

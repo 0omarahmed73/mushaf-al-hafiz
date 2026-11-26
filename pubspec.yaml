@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.14.0
@@ -46,6 +46,7 @@ dependencies:
   workmanager: ^0.10.10
   share_plus: ^13.3.1
   file_picker: ^13.4.0
+  adhan_dart: 2.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -80,6 +81,7 @@ flutter:
     - assets/ayah/gharib/
     - assets/ayah/sources.json
     - assets/khatm/dua.txt        # feature 005: the one supplication, «دعاء ختم القرآن» (wording awaits the owner)
+    - assets/prayer/cities.json   # feature 014: the fallback city list (tool/build_cities.py, GeoNames CC BY 4.0)
 
   fonts:
     - family: AmiriQuran

@@ -15,20 +15,21 @@ abstract final class AppColors {
   static const Color ring = Color(0xFF5E7F6F);
 }
 
-/// Heading and title font (Reem Kufi, a variable font: set the weight with [kBoldVariation]).
-const String kHeadingFont = 'ReemKufi';
+/// Heading font: Cairo bold, the interface font (the owner, 2026-11-26). Reem Kufi is kept only for the surah title
+/// in the Mushaf page (`kTitleFont`), so the page looks as before.
+const String kHeadingFont = 'Cairo';
 
 /// Interface font: Cairo, which draws Arabic and Latin text and digits in one family
 /// (static Regular 400, Medium 500, SemiBold 600, Bold 700).
 const String kUiFont = 'Cairo';
 
-/// Bold for the variable heading font.
+/// Bold for the variable title font (Reem Kufi).
 const List<FontVariation> kBoldVariation = [FontVariation('wght', 700)];
 
 /// A heading style in [kHeadingFont], bold.
 TextStyle headingStyle(double size, Color color) => TextStyle(
   fontFamily: kHeadingFont,
-  fontVariations: kBoldVariation,
+  fontWeight: FontWeight.w700,
   fontSize: size,
   color: color,
 );
@@ -440,7 +441,7 @@ ThemeData buildAppTheme({AppLook look = AppLook.emerald}) {
       scrolledUnderElevation: 0,
       titleTextStyle: TextStyle(
         fontFamily: kHeadingFont,
-        fontVariations: kBoldVariation,
+        fontWeight: FontWeight.w700,
         fontSize: 26,
         color: look.heading,
       ),
@@ -473,7 +474,12 @@ ThemeData buildAppTheme({AppLook look = AppLook.emerald}) {
         backgroundColor: look.primaryFill,
         foregroundColor: look.onPrimary,
         minimumSize: const Size(64, 48),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        // A button's text style replaces the theme's, so it names the family itself (else the phone's font shows).
+        textStyle: const TextStyle(
+          fontFamily: kUiFont,
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+        ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -504,7 +510,11 @@ ThemeData buildAppTheme({AppLook look = AppLook.emerald}) {
     snackBarTheme: night
         ? SnackBarThemeData(
             backgroundColor: look.cardFill,
-            contentTextStyle: TextStyle(color: look.cardInk, fontSize: 14),
+            contentTextStyle: TextStyle(
+              fontFamily: kUiFont,
+              color: look.cardInk,
+              fontSize: 14,
+            ),
             actionTextColor: look.accent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -520,7 +530,11 @@ ThemeData buildAppTheme({AppLook look = AppLook.emerald}) {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: look.controlBorder),
             ),
-            textStyle: TextStyle(color: look.cardInk, fontSize: 12),
+            textStyle: TextStyle(
+              fontFamily: kUiFont,
+              color: look.cardInk,
+              fontSize: 12,
+            ),
           )
         : null,
     sliderTheme: night

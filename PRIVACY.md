@@ -1,6 +1,6 @@
 # سياسة الخصوصية — مصحف الحافظ
 
-آخر تحديث: 25 نوفمبر 2026
+آخر تحديث: 26 نوفمبر 2026
 
 «مصحف الحافظ» تطبيق مجاني وغير تجاري لقراءة القرآن الكريم.
 
@@ -10,7 +10,11 @@
 - ما تحفظه في التطبيق (الأوراد، والموضع، والعلامات والملاحظات، والإعدادات) يبقى على هاتفك وحده، ويُحذف إذا حذفت التطبيق.
 - النسخة الاحتياطية ملف تصدّره أنت بنفسك وتختار أين تحفظه أو مع من تشاركه.
 - المشاركة (آية، أو صورة صفحة، أو سورة PDF) تتم من خلال قائمة المشاركة في نظام الهاتف، وبطلب منك فقط.
-- صلاحية الإشعارات تُستعمل للتذكيرات التي تضبطها أنت، ويجدولها الهاتف نفسه.
+- صلاحية الإشعارات تُستعمل للتذكيرات وتنبيهات الصلاة التي تضبطها أنت، ويجدولها الهاتف نفسه.
+- **مواقيت الصلاة** (اختيارية ومقفولة إلى أن تشغّلها): إذا ضغطت «حدد موقعي» يطلب التطبيق **موقعك التقريبي** مرة واحدة
+  فقط، ويُستعمل على هاتفك لحساب المواقيت، ولا يُرسل إلى أي جهة. لا يطلب التطبيق الموقع الدقيق ولا الموقع في الخلفية.
+  يمكنك بدلًا من ذلك اختيار مدينتك من قائمة داخل التطبيق.
+- صلاحية **المنبّهات الدقيقة** (إن سمحت بها من إعدادات الهاتف) تُستعمل فقط لتصل تنبيهات الصلاة في وقتها بالضبط.
 
 للتواصل: https://github.com/0omarahmed73/mushaf-al-hafiz/issues
 
@@ -18,7 +22,7 @@
 
 # Privacy policy — Mushaf al-Hafiz
 
-Last updated: 25 November 2026
+Last updated: 26 November 2026
 
 Mushaf al-Hafiz is a free, non-commercial app for reading the Quran.
 
@@ -29,6 +33,12 @@ Mushaf al-Hafiz is a free, non-commercial app for reading the Quran.
   when you uninstall the app.
 - A backup is a file you export yourself and store or share where you choose.
 - Sharing (an ayah, a page picture, a surah PDF) goes through the phone's own share menu, only when you ask for it.
-- The notification permission is used for the reminders you set; the phone itself schedules them.
+- The notification permission is used for the reminders and prayer notifications you set; the phone itself schedules
+  them.
+- **Prayer times** (optional, off until you turn them on): if you tap «حدد موقعي» (find my place), the app asks once for
+  your **approximate location**. It is used on your phone to calculate the times and is never sent anywhere. The app
+  never asks for the precise or the background location. You can pick your city from a list in the app instead.
+- The **exact alarms** permission (if you allow it in the phone's settings) is used only so that prayer notifications
+  arrive exactly on time.
 
 Contact: https://github.com/0omarahmed73/mushaf-al-hafiz/issues

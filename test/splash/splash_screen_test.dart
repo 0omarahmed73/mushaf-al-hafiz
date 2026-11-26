@@ -51,7 +51,8 @@ void main() {
   testWidgets('the text is set as designed', (tester) async {
     await startSplash(tester, host());
     final name = tester.widget<Text>(find.text(kSplashName));
-    expect(name.style!.fontFamily, 'ReemKufi');
+    expect(name.style!.fontFamily, 'Cairo');
+    expect(name.style!.fontWeight, FontWeight.w700);
     expect(name.style!.fontSize, 44);
     expect(name.style!.color, SplashColors.name);
     expect(name.style!.decoration, TextDecoration.none);

@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Reminders: shown with the screen locked and rescheduled after a restart. No exact-alarm
-         permission: the notifications are scheduled in inexact mode (a few minutes' slack). -->
+    <!-- Reminders: shown with the screen locked and rescheduled after a restart. Wird and Kahf reminders are
+         scheduled in inexact mode (a few minutes' slack). Prayer notifications (feature 014) are exact when the reader
+         allows exact alarms in the phone's settings (SCHEDULE_EXACT_ALARM, never USE_EXACT_ALARM), else inexact. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- Prayer times (feature 014, constitution 3.0.0): the approximate location only, asked when the reader taps
+         «حدد موقعي»; never the precise or the background location. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="مصحف الحافظ"
         android:name="${applicationName}"
